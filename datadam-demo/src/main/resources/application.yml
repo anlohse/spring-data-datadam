@@ -1,0 +1,13 @@
+server:
+  address: 127.0.0.1
+  port: ${PORT:8080}
+datadam:
+  host: ${DATADAM_HOST:localhost}
+  port: ${DATADAM_PORT:6380}
+  username: ${DATADAM_USERNAME:app}
+  password: ${DATADAM_PASSWORD:local-app-password}
+spring:
+  data:
+    web:
+      pageable:
+        max-page-size: 100

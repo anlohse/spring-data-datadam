@@ -1,0 +1,15 @@
+name: datadam-spring-data
+services:
+  datadam:
+    image: datadam:latest
+    build:
+      context: ${DATADAM_SOURCE:-D:/cpp/workspaces/datadam}
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - datadam-data:/var/lib/datadam
+      - ./docker/datadam.conf:/etc/datadam/spring-data.conf:ro
+    entrypoint: ["datadam", "/etc/datadam/spring-data.conf"]
+    restart: unless-stopped
+volumes:
+  datadam-data:
