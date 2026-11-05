@@ -13,6 +13,8 @@ import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 @AutoConfiguration
 @EnableConfigurationProperties(DatadamProperties.class)
 public class DatadamAutoConfiguration {
+    @Bean @ConditionalOnMissingBean(name = "datadamIdGenerator")
+    public DatadamIdGenerator datadamIdGenerator() { return new UuidDatadamIdGenerator(); }
     @Bean(destroyMethod = "close")
     @ConditionalOnMissingBean(name = "datadamPool")
     public JedisPool datadamPool(DatadamProperties p) {
@@ -30,7 +32,8 @@ public class DatadamAutoConfiguration {
     @Bean @ConditionalOnMissingBean
     public DatadamCommands datadamCommands(@org.springframework.beans.factory.annotation.Qualifier("datadamPool") JedisPool pool) { return new DatadamCommands(pool); }
     @Bean @ConditionalOnMissingBean
-    public DatadamTemplate datadamTemplate(DatadamCommands commands, ObjectProvider<ObjectMapper> mapper) {
-        return new DatadamTemplate(commands, mapper.getIfAvailable(() -> new ObjectMapper().findAndRegisterModules()));
+    public DatadamTemplate datadamTemplate(DatadamCommands commands, ObjectProvider<ObjectMapper> mapper,
+        java.util.Map<String, DatadamIdGenerator> idGenerators) {
+        return new DatadamTemplate(commands, mapper.getIfAvailable(() -> new ObjectMapper().findAndRegisterModules()), idGenerators);
     }
 }

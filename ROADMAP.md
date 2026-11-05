@@ -2,9 +2,9 @@
 
 Este documento acompanha a evolução da biblioteca, da base funcional atual até uma versão adequada para adoção em outros projetos. A ordem busca entregar utilidade em cada etapa, sem depender de uma reescrita futura.
 
-**Estado atual:** base funcional e TTL de entidades entregues, com 52 testes aprovados na última execução confirmada: 19 unitários e 33 de integração com Datadam real no Docker.
+**Estado atual:** base funcional, TTL e geração de IDs entregues, com 81 testes aprovados na última execução confirmada: 36 unitários e 45 de integração com Datadam real no Docker.
 
-**Próxima entrega:** **1.2 — Geração de IDs e identificação de entidades novas**. A implementação desse recurso ainda não começou.
+**Próxima entrega:** **1.3 — Auditoria e callbacks**. A implementação desse recurso ainda não começou.
 
 ## Como vamos trabalhar
 
@@ -72,15 +72,21 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Decisão de atomicidade:** os testes comprovam isolamento da gravação/TTL e preservação do documento e da data absoluta de expiração em recusas por UNIQUE, ACL e valores inválidos. O servidor não oferece rollback geral de scripts, e uma escrita UNIQUE pode forçar commit antecipado. A garantia de documento + TTL em uma única gravação durável após crash não está incluída nesta entrega; exigiria uma evolução explícita do servidor C++. Esse limite está documentado e não é considerado resolvido pela biblioteca.
 
-### 1.2. Geração de IDs e identificação de entidades novas
+### 1.2. Geração de IDs e identificação de entidades novas — concluído
 
-- [ ] Definir quando uma entidade é considerada nova, preservando o suporte a IDs atribuídos pela aplicação.
-- [ ] Oferecer geração opcional de IDs e uma extensão para estratégias próprias.
-- [ ] Suportar classes mutáveis e records, retornando a entidade com o ID efetivamente persistido.
-- [ ] Testar geração, preservação de IDs existentes e comportamento em falhas de gravação.
-- [ ] Documentar os tipos de ID suportados e atualizar o exemplo.
+- [x] Definir quando uma entidade é considerada nova, preservando o suporte a IDs atribuídos pela aplicação.
+- [x] Oferecer geração opcional de IDs e uma extensão para estratégias próprias.
+- [x] Suportar classes mutáveis e records, retornando a entidade com o ID efetivamente persistido.
+- [x] Testar geração, preservação de IDs existentes e comportamento em falhas de gravação.
+- [x] Documentar os tipos de ID suportados e atualizar o exemplo.
 
 **Concluído quando:** o usuário puder escolher entre informar o ID ou recebê-lo no retorno de `save`, com comportamento previsível em novas gravações e atualizações.
+
+**Entrega em 05/11/2026:** `@DatadamGeneratedId`, UUID padrão para String/UUID, estratégias nomeadas `DatadamIdGenerator` e detecção local de estado com suporte a `Persistable`. IDs gerados usam criação NX, inclusive com TTL, para recusar colisões sem sobrescrever documentos. Records retornam uma cópia; classes mutáveis recebem o ID somente após sucesso. O exemplo `/temporary-notes` aceita POST sem ID. Consulte [IDs e identificação de entidades novas](docs/entity-identity.md).
+
+**Validação:** 17 novos testes unitários e 12 novos testes de integração; 81 testes aprovados no total. Inclui UNIQUE, ACL, falha de transporte simulada, colisão sem alteração do TTL, disputa simultânea pelo mesmo ID, geradores personalizados, saveAll e HTTP. A API local também foi conferida por POST sem ID, leitura pelo ID retornado e consulta de TTL.
+
+**Decisões de contrato:** IDs atribuídos em entidades comuns mantêm save como criação/substituição. `Persistable.isNew() == true` solicita criação exclusiva. A detecção não consulta o banco, e flags de Persistable não são alteradas automaticamente. Falha de transporte pode deixar resultado incerto; não há repetição automática. `saveAll` permanece sequencial com possibilidade de êxito parcial, conforme documentado.
 
 ### 1.3. Auditoria e callbacks
 
@@ -260,6 +266,7 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 | Base JSON, índices e buscas nativas | Concluída | Biblioteca, aplicação HTTP e Docker local |
 | Consultas derivadas | Concluída | 33 testes aprovados na última execução confirmada, somando a suíte existente |
 | 1.1 — TTL de entidades | Concluída | 52 testes aprovados no total; padrão/override, Duration, persist, UNIQUE, ACL, índices e HTTP; limite de durabilidade em crash documentado |
-| 1.2 — Geração de IDs e identificação de entidades novas | Próxima | API e implementação ainda pendentes |
+| 1.2 — Geração de IDs e identificação de entidades novas | Concluída | 81 testes aprovados no total; geração opcional, estado novo, classes/records, colisões, TTL, falhas e HTTP |
+| 1.3 — Auditoria e callbacks | Próxima | API e implementação ainda pendentes |
 
 Ao terminar cada entrega, acrescentaremos aqui o resultado, os testes executados e eventuais decisões que alterem os próximos passos.

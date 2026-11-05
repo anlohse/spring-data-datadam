@@ -7,8 +7,10 @@ import org.springframework.data.domain.*;
 public class SimpleDatadamRepository<T, ID> implements DatadamRepository<T, ID> {
     private final DatadamTemplate template;
     private final EntityModel<T> model;
-    public SimpleDatadamRepository(DatadamTemplate template, Class<T> type) { this.template = template; model = new EntityModel<>(type); }
-    public <S extends T> S save(S entity) { template.save(entity, model); return entity; }
+    public SimpleDatadamRepository(DatadamTemplate template, Class<T> type) {
+        this.template = template; model = new EntityModel<>(type); template.validateModel(model);
+    }
+    public <S extends T> S save(S entity) { return template.save(entity, model); }
     public <S extends T> List<S> saveAll(Iterable<S> entities) { List<S> result = new ArrayList<>(); entities.forEach(e -> result.add(save(e))); return result; }
     public Optional<T> findById(ID id) { return template.findById(id, model); }
     public boolean persist(ID id) { return template.persist(id, model); }

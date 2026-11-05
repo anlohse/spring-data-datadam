@@ -10,5 +10,5 @@ import org.springframework.data.annotation.Id;
 @DatadamIndex(name = "demo:temporary:reference", unique = true, fields = @IndexField(path = "$.reference", alias = "reference"))
 @DatadamIndex(name = "demo:temporary:search", kind = DatadamIndex.Kind.SEARCH,
     fields = @IndexField(path = "$.category", alias = "category", caseSensitive = true))
-public record TemporaryNote(@Id String id, String reference, String category, String text,
+public record TemporaryNote(@Id @DatadamGeneratedId String id, String reference, String category, String text,
     @DatadamTimeToLive(unit = TimeUnit.MILLISECONDS) Long ttlMillis) {}

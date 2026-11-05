@@ -10,6 +10,13 @@ end
 -- ARGV[2] is validated as positive, whole milliseconds by the Java mapping layer.
 -- Keep it as text: Lua numbers cannot represent every signed 64-bit TTL exactly.
 -- A JSON.SET error (e.g. UNIQUE or WRONGTYPE) stops the script before expiration changes.
-local result = redis.call('JSON.SET', KEYS[1], '$', ARGV[1])
+local result
+if ARGV[3] == 'NX' then
+    result = redis.call('JSON.SET', KEYS[1], '$', ARGV[1], 'NX')
+else
+    result = redis.call('JSON.SET', KEYS[1], '$', ARGV[1])
+end
+-- An ID collision must not change the existing document's expiry.
+if not result then return false end
 redis.call('PEXPIRE', KEYS[1], ARGV[2])
 return result

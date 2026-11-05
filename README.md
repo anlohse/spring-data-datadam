@@ -75,7 +75,7 @@ Há uma conexão RESP2 por comando, obtida de um pool Jedis. Por padrão, `datad
 
 ## Modelar entidade e índices
 
-O arquivo `datadam-demo/src/main/java/io/datadam/demo/Customer.java` é o exemplo completo. Cada entidade precisa de `@DatadamDocument(prefix = "...")` e exatamente um campo `@Id` do Spring Data, inclusive em records. O ID deve ser atribuído pela aplicação antes do save. As chaves são `prefix + id`; use prefixos exclusivos e sem sobreposição entre tipos.
+O arquivo `datadam-demo/src/main/java/io/datadam/demo/Customer.java` é o exemplo completo. Cada entidade precisa de `@DatadamDocument(prefix = "...")` e exatamente um campo `@Id` do Spring Data, inclusive em records. O ID pode ser atribuído pela aplicação ou gerado ao salvar com `@DatadamGeneratedId`. As chaves são `prefix + id`; use prefixos exclusivos e sem sobreposição entre tipos.
 
 ```java
 @DatadamDocument(prefix = "demo:customer:")
@@ -90,6 +90,12 @@ public record Customer(@Id String id, String email, String city, int age) {}
 `@DatadamIndex` é repetível. O tipo padrão é `COMPOUND` (`IDX.CREATE ... ON JSON`); `kind = SEARCH` cria `FT.CREATE ... ON JSON`. Campos aceitam JSONPath, alias e tipos TAG/NUMERIC. Apenas TAG de índices FT aceita `caseSensitive = true`. TAG de IDX sempre diferencia maiúsculas; TAG de FT ignora maiúsculas ASCII por padrão. Arrays JSON podem produzir vários valores indexados.
 
 A ordem dos campos em um índice composto é parte do contrato: igualdade nos campos iniciais e faixa no seguinte selecionam uma fatia contígua. Campos ausentes ou numéricos inválidos excluem o documento de IDX. FT mantém documentos que não têm todos os campos. UNIQUE é imposto atomicamente pelo servidor e convertido em `DuplicateKeyException`.
+
+## IDs e entidades novas
+
+Adicione `@DatadamGeneratedId` ao campo `@Id` para gerar UUID quando o ID estiver ausente. O padrão aceita String e UUID; beans `DatadamIdGenerator` permitem estratégias próprias. IDs informados são preservados. Use sempre o retorno de `save` e `saveAll`: records recebem uma nova instância com o ID, enquanto classes mutáveis são preenchidas após sucesso.
+
+O exemplo `/temporary-notes` aceita POST sem ID. Consulte [IDs e identificação de entidades novas](docs/entity-identity.md) para tipos, detecção de estado, `Persistable`, colisões, integração com TTL e comportamento em falhas.
 
 ## TTL de entidades
 
@@ -217,7 +223,7 @@ Se o Maven falhar com PKIX nesta máquina, o script já usa o repositório de ce
 Escopo de 0.1:
 
 - Mapeamento de repositórios em JSON. Comandos HASH, JSON adicionais e projeções nativas podem ser enviados com `DatadamCommands.execute`, mas não são automaticamente convertidos para entidades HASH.
-- Consultas anotadas, derivação de nomes e API programática. Repositórios reativos, transações Spring, optimistic locking e geração de IDs ainda não estão implementados. Derivação é limitada ao subconjunto documentado acima.
+- Consultas anotadas, derivação de nomes e API programática, com IDs atribuídos ou geração opcional. Repositórios reativos, transações Spring e optimistic locking ainda não estão implementados. Derivação é limitada ao subconjunto documentado acima.
 - `Page` de IDX faz `IDX.COUNT` e `IDX.QUERY` separados. Sob concorrência, conteúdo e total podem refletir momentos distintos. Para somente contagem, use `count(index, query)`; FT já devolve o total no mesmo comando.
 - `findAll`, `count()` e `deleteAll()` percorrem o prefixo usando SCAN TYPE ReJSON-RL. Para consultas de negócio e grandes coleções, prefira índices; o `DBSIZE` do Datadam é uma estimativa global.
 - `saveAll` e exclusões em lote são sequenciais e podem ter êxito parcial. Sem política de TTL, `save` faz JSON.SET e mantém o prazo existente. Com TTL, usa um script isolado para gravar e expirar, com os limites de durabilidade descritos na documentação de TTL. Não há emulação de índices com sets de Redis.

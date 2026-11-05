@@ -2,6 +2,7 @@ package io.datadam.spring;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.*;
 import io.datadam.spring.annotation.DatadamIndex;
 import org.springframework.dao.*;
@@ -14,19 +15,56 @@ public class DatadamTemplate {
     private static final String SAVE_WITH_TTL = loadSaveWithTtl();
     private final DatadamCommands commands;
     private final ObjectMapper mapper;
-    public DatadamTemplate(DatadamCommands commands, ObjectMapper mapper) { this.commands = commands; this.mapper = mapper; }
+    private final Map<String, DatadamIdGenerator> idGenerators;
+    public DatadamTemplate(DatadamCommands commands, ObjectMapper mapper) {
+        this(commands, mapper, Map.of("datadamIdGenerator", new UuidDatadamIdGenerator()));
+    }
+    public DatadamTemplate(DatadamCommands commands, ObjectMapper mapper, Map<String, DatadamIdGenerator> idGenerators) {
+        this.commands = commands; this.mapper = mapper; this.idGenerators = Map.copyOf(idGenerators);
+    }
     public DatadamCommands commands() { return commands; }
-    public <T> T save(T entity, EntityModel<T> model) {
+    public <T, S extends T> S save(S entity, EntityModel<T> model) {
         Objects.requireNonNull(entity);
+        validateModel(model);
         var ttl = model.timeToLiveMilliseconds(entity);
-        String key = model.key(model.id(entity));
+        boolean isNew = model.isNew(entity);
+        boolean generate = model.generatesId() && model.hasMissingId(entity);
+        if (generate && !isNew) throw new IllegalArgumentException("An entity marked as not new cannot have an absent generated ID");
+        Object id = generate ? generator(model).generateId(model.idGenerationContext()) : model.id(entity);
+        if (generate) model.validateGeneratedId(id);
+        String key = model.key(id);
+        S result = generate ? model.recordWithId(entity, id) : entity;
+        if (generate && model.type().isRecord() && !Objects.equals(model.id(result), id))
+            throw new IllegalArgumentException("Record constructor must preserve the generated ID");
+        boolean insertOnly = generate || entity instanceof org.springframework.data.domain.Persistable<?> && isNew;
         try {
-            String json = mapper.writeValueAsString(entity);
-            if (ttl.isPresent()) commands.execute("EVAL", SAVE_WITH_TTL, 1, key, json, ttl.getAsLong());
-            else commands.execute("JSON.SET", key, "$", json);
-            return entity;
+            String json = generate ? jsonWithId(result, model, id) : mapper.writeValueAsString(result);
+            Object reply;
+            if (ttl.isPresent()) reply = commands.execute("EVAL", SAVE_WITH_TTL, 1, key, json, ttl.getAsLong(), insertOnly ? "NX" : "");
+            else if (insertOnly) reply = commands.execute("JSON.SET", key, "$", json, "NX");
+            else reply = commands.execute("JSON.SET", key, "$", json);
+            if (reply == null) throw new DuplicateKeyException("Cannot insert entity: its ID already exists");
+            if (generate) model.applyGeneratedId(result, id);
+            return result;
         }
         catch (JsonProcessingException e) { throw new InvalidDataAccessApiUsageException("Cannot serialize entity", e); }
+    }
+    public void validateModel(EntityModel<?> model) {
+        if (model.generatesId()) generator(model).validate(model.idGenerationContext());
+    }
+    private DatadamIdGenerator generator(EntityModel<?> model) {
+        var generator = idGenerators.get(model.idGeneratorName());
+        if (generator == null) throw new IllegalArgumentException("No DatadamIdGenerator named '" + model.idGeneratorName() + "' for " + model.type().getName());
+        return generator;
+    }
+    private String jsonWithId(Object entity, EntityModel<?> model, Object id) throws JsonProcessingException {
+        var property = mapper.getSerializationConfig().introspect(mapper.constructType(entity.getClass())).findProperties().stream()
+            .filter(p -> p.getInternalName().equals(model.idProperty()) && p.couldSerialize()).findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Generated @Id must be a serialized JSON property: " + model.idProperty()));
+        var tree = mapper.valueToTree(entity);
+        if (!(tree instanceof ObjectNode object)) throw new IllegalArgumentException("Generated IDs require an entity serialized as a JSON object");
+        object.set(property.getName(), mapper.valueToTree(id));
+        return mapper.writeValueAsString(object);
     }
     /** Remove expiration only. Future saves with an explicit/default positive TTL apply it again. */
     public boolean persist(Object id, EntityModel<?> model) {

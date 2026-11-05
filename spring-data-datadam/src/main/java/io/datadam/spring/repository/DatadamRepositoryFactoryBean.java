@@ -27,6 +27,7 @@ public class DatadamRepositoryFactoryBean<R extends Repository<T, ID>, T, ID> ex
             return new AbstractEntityInformation<T, ID>(type) {
                 @SuppressWarnings("unchecked") public ID getId(T entity) { return (ID) model.id(entity); }
                 @SuppressWarnings("unchecked") public Class<ID> getIdType() { return (Class<ID>) model.idType(); }
+                @Override public boolean isNew(T entity) { return model.isNew(entity); }
             };
         }
         @Override protected Object getTargetRepository(RepositoryInformation info) { return new SimpleDatadamRepository<>(template, info.getDomainType()); }
