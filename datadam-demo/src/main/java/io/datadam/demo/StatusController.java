@@ -11,6 +11,6 @@ public class StatusController {
     @GetMapping("/") public Map<String, Object> status() {
         return Map.of("application", "Spring Data Datadam demo", "datadam", commands.execute("PING"),
             "customers", "/customers?city=SP", "search", "/customers/search?city=SP", "derived", "/customers/derived?city=SP",
-            "temporaryNotes", "/temporary-notes?category=demo");
+            "temporaryNotes", "/temporary-notes?category=demo", "auditedNotes", "/audited-notes?category=demo");
     }
 }

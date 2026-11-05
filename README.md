@@ -103,6 +103,12 @@ Use `@DatadamDocument(timeToLive = 60, prefix = "note:")` para um prazo padrão 
 
 O exemplo completo está na API `/temporary-notes`. Consulte [TTL de entidades](docs/entity-ttl.md) para regras, permissões, exemplos e limites de atomicidade e recuperação após crash do servidor.
 
+## Auditoria e callbacks
+
+Ative `@EnableDatadamAuditing` para preencher `@CreatedDate`, `@LastModifiedDate`, `@CreatedBy` e `@LastModifiedBy` do Spring Data. `AuditorAware` fornece o autor; `DateTimeProvider` ou Clock controla as datas. O recurso é opcional e suporta classes mutáveis e records.
+
+Callbacks BeforeConvert, BeforeSave, AfterSave e AfterConvert permitem normalização, validação e observação. O exemplo `/audited-notes` recebe apenas campos de negócio e preserva os dados de criação nas atualizações. Consulte [auditoria e callbacks](docs/auditing-and-callbacks.md) para ordem, configuração e semântica de falhas.
+
 ## Repositórios e consultas
 
 ```java
@@ -202,7 +208,7 @@ O script executa `SchemaApplication` antes da API, com um usuário `schema`. O p
 
 - `default off` exige autenticação; `protected-mode yes` permanece ativo.
 - `schema` pode criar, inspecionar e remover índices; a API não recebe esses comandos.
-- `app` pode ler/gravar documentos somente em `demo:customer:*` e `demo:temporary:*`, consultar índices e executar os comandos necessários ao TTL.
+- `app` pode ler/gravar documentos somente em `demo:customer:*`, `demo:temporary:*` e `demo:audited:*`, consultar índices e executar os comandos necessários ao TTL.
 - `reader` só lê chaves `demo:customer:visible*`, para testar filtros ACL de resultados e totais.
 - O memcache está desativado e apenas o loopback do host recebe a porta publicada.
 

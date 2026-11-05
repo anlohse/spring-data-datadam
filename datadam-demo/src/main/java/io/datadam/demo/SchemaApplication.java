@@ -20,7 +20,8 @@ public final class SchemaApplication {
         try (var pool = new JedisPool(new HostAndPort(host, port), DefaultJedisClientConfig.builder().user("schema").password(password).build())) {
             new DatadamIndexOperations(new DatadamCommands(pool)).ensureIndexes(Customer.class, Duration.ofSeconds(30));
             new DatadamIndexOperations(new DatadamCommands(pool)).ensureIndexes(TemporaryNote.class, Duration.ofSeconds(30));
-            System.out.println("Datadam schema ready: customer and temporary-note indexes");
+            new DatadamIndexOperations(new DatadamCommands(pool)).ensureIndexes(AuditedNote.class, Duration.ofSeconds(30));
+            System.out.println("Datadam schema ready: customer, temporary-note and audited-note indexes");
         }
     }
 }
