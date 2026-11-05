@@ -33,7 +33,9 @@ public class DatadamAutoConfiguration {
     public DatadamCommands datadamCommands(@org.springframework.beans.factory.annotation.Qualifier("datadamPool") JedisPool pool) { return new DatadamCommands(pool); }
     @Bean @ConditionalOnMissingBean
     public DatadamTemplate datadamTemplate(DatadamCommands commands, ObjectProvider<ObjectMapper> mapper,
-        java.util.Map<String, DatadamIdGenerator> idGenerators) {
-        return new DatadamTemplate(commands, mapper.getIfAvailable(() -> new ObjectMapper().findAndRegisterModules()), idGenerators);
+        java.util.Map<String, DatadamIdGenerator> idGenerators, org.springframework.beans.factory.BeanFactory beans,
+        ObjectProvider<io.datadam.spring.auditing.DatadamAuditing> auditing) {
+        return new DatadamTemplate(commands, mapper.getIfAvailable(() -> new ObjectMapper().findAndRegisterModules()), idGenerators,
+            org.springframework.data.mapping.callback.EntityCallbacks.create(beans), auditing.getIfAvailable());
     }
 }

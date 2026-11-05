@@ -10,33 +10,58 @@ import org.springframework.data.domain.*;
 import org.springframework.core.io.ClassPathResource;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import io.datadam.spring.auditing.DatadamAuditing;
+import io.datadam.spring.callback.*;
+import org.springframework.data.mapping.callback.EntityCallbacks;
 
 public class DatadamTemplate {
     private static final String SAVE_WITH_TTL = loadSaveWithTtl();
     private final DatadamCommands commands;
     private final ObjectMapper mapper;
     private final Map<String, DatadamIdGenerator> idGenerators;
+    private final EntityCallbacks callbacks;
+    private final DatadamAuditing auditing;
     public DatadamTemplate(DatadamCommands commands, ObjectMapper mapper) {
         this(commands, mapper, Map.of("datadamIdGenerator", new UuidDatadamIdGenerator()));
     }
     public DatadamTemplate(DatadamCommands commands, ObjectMapper mapper, Map<String, DatadamIdGenerator> idGenerators) {
+        this(commands, mapper, idGenerators, EntityCallbacks.create(), null);
+    }
+    public DatadamTemplate(DatadamCommands commands, ObjectMapper mapper, Map<String, DatadamIdGenerator> idGenerators,
+        EntityCallbacks callbacks, DatadamAuditing auditing) {
         this.commands = commands; this.mapper = mapper; this.idGenerators = Map.copyOf(idGenerators);
+        this.callbacks = Objects.requireNonNull(callbacks); this.auditing = auditing;
     }
     public DatadamCommands commands() { return commands; }
     public <T, S extends T> S save(S entity, EntityModel<T> model) {
         Objects.requireNonNull(entity);
         validateModel(model);
-        var ttl = model.timeToLiveMilliseconds(entity);
         boolean isNew = model.isNew(entity);
-        boolean generate = model.generatesId() && model.hasMissingId(entity);
+        Object initialId = model.id(entity);
+        var context = new DatadamSaveContext(model.type(), model.prefix(), model.hasMissingId(entity) ? null : model.key(initialId), isNew);
+        var creation = auditing != null && !isNew ? auditing.snapshot(entity, true) : Map.<String, Object>of();
+        S working = callbacks.callback(BeforeConvertCallback.class, entity, context);
+        checkCallbackEntity(entity, working, model, initialId, isNew);
+        if (auditing != null) {
+            auditing.validate(working.getClass());
+            auditing.assertUnchanged(creation, working);
+            working = auditing.audit(working, isNew);
+        }
+        var auditValues = auditing == null ? Map.<String, Object>of() : auditing.snapshot(working, false);
+        working = callbacks.callback(BeforeSaveCallback.class, working, context);
+        checkCallbackEntity(entity, working, model, initialId, isNew);
+        if (auditing != null) auditing.assertUnchanged(auditValues, working);
+        var ttl = model.timeToLiveMilliseconds(working);
+        boolean generate = model.generatesId() && model.hasMissingId(working);
         if (generate && !isNew) throw new IllegalArgumentException("An entity marked as not new cannot have an absent generated ID");
-        Object id = generate ? generator(model).generateId(model.idGenerationContext()) : model.id(entity);
+        Object id = generate ? generator(model).generateId(model.idGenerationContext()) : model.id(working);
         if (generate) model.validateGeneratedId(id);
         String key = model.key(id);
-        S result = generate ? model.recordWithId(entity, id) : entity;
+        S result = generate ? model.recordWithId(working, id) : working;
         if (generate && model.type().isRecord() && !Objects.equals(model.id(result), id))
             throw new IllegalArgumentException("Record constructor must preserve the generated ID");
         boolean insertOnly = generate || entity instanceof org.springframework.data.domain.Persistable<?> && isNew;
+        if (auditing != null) auditing.assertUnchanged(auditValues, result);
         try {
             String json = generate ? jsonWithId(result, model, id) : mapper.writeValueAsString(result);
             Object reply;
@@ -45,12 +70,29 @@ public class DatadamTemplate {
             else reply = commands.execute("JSON.SET", key, "$", json);
             if (reply == null) throw new DuplicateKeyException("Cannot insert entity: its ID already exists");
             if (generate) model.applyGeneratedId(result, id);
-            return result;
+            try {
+                S returned = callbacks.callback(AfterSaveCallback.class, result, new DatadamSaveContext(model.type(), model.prefix(), key, isNew));
+                checkCallbackEntity(entity, returned, model, id, null);
+                if (auditing != null) auditing.assertUnchanged(auditValues, returned);
+                return returned;
+            } catch (RuntimeException e) { throw new AfterSaveCallbackException(key, e); }
         }
         catch (JsonProcessingException e) { throw new InvalidDataAccessApiUsageException("Cannot serialize entity", e); }
     }
     public void validateModel(EntityModel<?> model) {
         if (model.generatesId()) generator(model).validate(model.idGenerationContext());
+        if (auditing != null) {
+            auditing.validate(model.type());
+            var properties = mapper.getSerializationConfig().introspect(mapper.constructType(model.type())).findProperties();
+            for (String name : auditing.properties(model.type()))
+                if (properties.stream().noneMatch(p -> p.getInternalName().equals(name) && p.couldSerialize()))
+                    throw new IllegalArgumentException("Audit property must be serialized in JSON: " + name);
+        }
+    }
+    private <T> void checkCallbackEntity(T original, T candidate, EntityModel<T> model, Object id, Boolean newState) {
+        if (candidate == null || !original.getClass().isInstance(candidate)) throw new IllegalArgumentException("Callback must return a compatible, non-null entity");
+        if (!Objects.equals(id, model.id(candidate))) throw new IllegalArgumentException("Callback must not change entity identity");
+        if (newState != null && model.isNew(candidate) != newState) throw new IllegalArgumentException("Pre-save callback must not change entity new-state detection");
     }
     private DatadamIdGenerator generator(EntityModel<?> model) {
         var generator = idGenerators.get(model.idGeneratorName());
@@ -76,7 +118,7 @@ public class DatadamTemplate {
     }
     public <T> Optional<T> findById(Object id, EntityModel<T> model) {
         Object json = commands.execute("JSON.GET", model.key(id)); // no path: document, not JSONPath array
-        return json == null ? Optional.empty() : Optional.of(read(json, model.type()));
+        return json == null ? Optional.empty() : Optional.of(read(json, model, model.key(id)));
     }
     public <T> Page<T> query(String index, CompoundQuery query, Pageable pageable, EntityModel<T> model) {
         model.index(index, DatadamIndex.Kind.COMPOUND);
@@ -165,7 +207,7 @@ public class DatadamTemplate {
         List<T> result = new ArrayList<>();
         for (String key : keys(model)) {
             Object json = commands.execute("JSON.GET", key);
-            if (json != null) result.add(read(json, model.type()));
+            if (json != null) result.add(read(json, model, key));
         }
         return result;
     }
@@ -189,12 +231,19 @@ public class DatadamTemplate {
             var fields = DatadamCommands.map(array.get(i + 1));
             Object json = fields.get("$");
             if (json == null) throw new DataRetrievalFailureException("Expected JSON document content");
-            entities.add(read(json, model.type()));
+            entities.add(read(json, model, key));
         }
         return entities;
     }
-    private <T> T read(Object json, Class<T> type) {
-        try { return mapper.readValue(json.toString(), type); }
-        catch (JsonProcessingException e) { throw new DataRetrievalFailureException("Cannot deserialize " + type.getName(), e); }
+    private <T> T read(Object json, EntityModel<T> model, String key) {
+        T loaded;
+        try { loaded = mapper.readValue(json.toString(), model.type()); }
+        catch (JsonProcessingException e) { throw new DataRetrievalFailureException("Cannot deserialize " + model.type().getName(), e); }
+        Object id = model.id(loaded);
+        var auditValues = auditing == null ? Map.<String, Object>of() : auditing.snapshot(loaded, false);
+        T returned = callbacks.callback(AfterConvertCallback.class, loaded, key);
+        checkCallbackEntity(loaded, returned, model, id, null);
+        if (auditing != null) auditing.assertUnchanged(auditValues, returned);
+        return returned;
     }
 }

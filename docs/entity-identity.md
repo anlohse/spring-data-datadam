@@ -17,7 +17,7 @@ Note saved = repository.save(input);
 
 Sempre use o retorno de `save` e `saveAll`. Para records, a biblioteca chama o construtor canônico com o ID gerado e os valores dos demais componentes. Esse construtor precisa aceitar o novo ID sem transformá-lo; a biblioteca recusa uma transformação que faria o ID retornado divergir da chave. Outros construtores imutáveis, builders e métodos wither ainda não são usados.
 
-Para classes mutáveis, o campo ID deve ser gravável e fazer parte do JSON serializado. Após sucesso, a mesma instância recebe o ID e é retornada. Um ID final em uma classe que não é record não suporta geração. Os nomes JSON de Jackson, inclusive `@JsonProperty` e naming strategy, são respeitados.
+Para classes mutáveis, o campo ID deve ser gravável e fazer parte do JSON serializado. Após sucesso, a instância efetivamente salva recebe o ID e é retornada. Sem substituição por callbacks, ela é a mesma instância de entrada. Um ID final em uma classe que não é record não suporta geração. Os nomes JSON de Jackson, inclusive `@JsonProperty` e naming strategy, são respeitados.
 
 Sem a anotação de geração, a aplicação continua responsável por informar um ID válido antes de salvar. Um ID existente nunca é substituído pelo gerador, mesmo que o campo tenha a anotação.
 
@@ -36,7 +36,7 @@ O módulo expõe a mesma decisão em `EntityModel.isNew` e no `EntityInformation
 
 Essa decisão não consulta o Datadam e não comprova que a chave existe. Uma entidade com ID atribuído pode ainda não estar no banco. Para distinguir explicitamente esse caso, implemente `Persistable`.
 
-`@Version` ainda não participa da detecção; seu suporte pertence à etapa 2.1. Auditoria e callbacks pertencem à etapa 1.3.
+`@Version` ainda não participa da detecção; seu suporte pertence à etapa 2.1. A auditoria e os callbacks do item 1.3 usam essa decisão local; consulte a documentação em docs/auditing-and-callbacks.md.
 
 ### Política de gravação
 

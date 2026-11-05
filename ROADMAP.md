@@ -2,9 +2,9 @@
 
 Este documento acompanha a evolução da biblioteca, da base funcional atual até uma versão adequada para adoção em outros projetos. A ordem busca entregar utilidade em cada etapa, sem depender de uma reescrita futura.
 
-**Estado atual:** base funcional, TTL e geração de IDs entregues, com 81 testes aprovados na última execução confirmada: 36 unitários e 45 de integração com Datadam real no Docker.
+**Estado atual:** ciclo de entidades com TTL, IDs, auditoria e callbacks entregue, com 108 testes aprovados na última execução confirmada: 54 unitários e 54 de integração com Datadam real no Docker.
 
-**Próxima entrega:** **1.3 — Auditoria e callbacks**. A implementação desse recurso ainda não começou.
+**Próxima entrega:** **2.1 — Optimistic locking com @Version**. A implementação desse recurso ainda não começou.
 
 ## Como vamos trabalhar
 
@@ -88,15 +88,21 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Decisões de contrato:** IDs atribuídos em entidades comuns mantêm save como criação/substituição. `Persistable.isNew() == true` solicita criação exclusiva. A detecção não consulta o banco, e flags de Persistable não são alteradas automaticamente. Falha de transporte pode deixar resultado incerto; não há repetição automática. `saveAll` permanece sequencial com possibilidade de êxito parcial, conforme documentado.
 
-### 1.3. Auditoria e callbacks
+### 1.3. Auditoria e callbacks — concluído
 
-- [ ] Introduzir callbacks de persistência e leitura com ordem de execução documentada.
-- [ ] Integrar datas de criação/alteração e autor de criação/alteração com as abstrações do Spring Data.
-- [ ] Usar a detecção de entidade nova da etapa 1.2 para preservar os dados de criação.
-- [ ] Testar classes mutáveis, records, relógio controlável e callbacks que recusam uma operação.
-- [ ] Adicionar exemplo de auditoria sem exigir que a aplicação use esse recurso.
+- [x] Introduzir callbacks de persistência e leitura com ordem de execução documentada.
+- [x] Integrar datas de criação/alteração e autor de criação/alteração com as abstrações do Spring Data.
+- [x] Usar a detecção de entidade nova da etapa 1.2 para preservar os dados de criação.
+- [x] Testar classes mutáveis, records, relógio controlável e callbacks que recusam uma operação.
+- [x] Adicionar exemplo de auditoria sem exigir que a aplicação use esse recurso.
 
 **Concluído quando:** salvar uma entidade puder preencher auditoria e executar callbacks sem alterar indevidamente sua identidade ou seus dados de criação.
+
+**Entrega em 05/11/2026:** `@EnableDatadamAuditing` com anotações Spring Data, AuditorAware e DateTimeProvider/Clock; callbacks BeforeConvert, BeforeSave, AfterSave e AfterConvert, ordenados e filtrados por tipo pelo Spring. O estado novo é capturado antes da geração de ID. A auditoria é opcional, suporta classes mutáveis e records e preserva os dados de criação em atualizações. Consulte [auditoria e callbacks](docs/auditing-and-callbacks.md).
+
+**Validação:** 18 novos testes unitários e 9 novos testes de integração; 108 testes aprovados no total. Cobertura de relógio/autores controlados, criação/alteração, ordem, normalização, proteção de identidade e auditoria, recusas, UNIQUE, TTL, materialização por CRUD/IDX/FT e API HTTP. O exemplo `/audited-notes` também foi conferido por POST/PUT na aplicação local.
+
+**Decisões de contrato:** auditoria por anotações na raiz da entidade; metadados embutidos e interface Auditable ficam fora deste escopo. A biblioteca preserva os dados de criação recebidos e não busca o estado anterior para autenticar esses valores; o exemplo HTTP usa DTOs de negócio e carrega a entidade antes de atualizar. Falha AfterSave é distinguida por AfterSaveCallbackException porque a escrita já foi confirmada. Efeitos executados por callbacks e alterações diretas em memória não recebem rollback automático. O estado dos itens anteriores e seus limites de transporte/durabilidade são mantidos.
 
 ## 2. Concorrência e controle de versão
 
@@ -267,6 +273,7 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 | Consultas derivadas | Concluída | 33 testes aprovados na última execução confirmada, somando a suíte existente |
 | 1.1 — TTL de entidades | Concluída | 52 testes aprovados no total; padrão/override, Duration, persist, UNIQUE, ACL, índices e HTTP; limite de durabilidade em crash documentado |
 | 1.2 — Geração de IDs e identificação de entidades novas | Concluída | 81 testes aprovados no total; geração opcional, estado novo, classes/records, colisões, TTL, falhas e HTTP |
-| 1.3 — Auditoria e callbacks | Próxima | API e implementação ainda pendentes |
+| 1.3 — Auditoria e callbacks | Concluída | 108 testes aprovados no total; auditoria opcional, ordem e proteção dos callbacks, records/classes, relógio e HTTP |
+| 2.1 — Optimistic locking com @Version | Próxima | API e implementação ainda pendentes |
 
 Ao terminar cada entrega, acrescentaremos aqui o resultado, os testes executados e eventuais decisões que alterem os próximos passos.
