@@ -12,6 +12,11 @@ public final class DatadamAuditing {
     private static final List<Class<? extends java.lang.annotation.Annotation>> ANNOTATIONS = List.of(CreatedDate.class, CreatedBy.class, LastModifiedDate.class, LastModifiedBy.class);
     private final DatadamAuditingMappingContext mapping = new DatadamAuditingMappingContext();
     private final AuditingHandler handler = AuditingHandler.from(mapping);
+    /** Includes nested annotations so partial writes cannot bypass auditing metadata even when filling is disabled. */
+    public static boolean hasAuditingMetadata(Class<?> type) {
+        var context = new DatadamAuditingMappingContext();
+        return context.findPersistentPropertyPaths(type, p -> ANNOTATIONS.stream().anyMatch(p::isAnnotationPresent)).iterator().hasNext();
+    }
     public DatadamAuditing(DateTimeProvider timeProvider, AuditorAware<?> auditor, boolean modifyOnCreate, boolean setDates) {
         handler.setDateTimeProvider(Objects.requireNonNull(timeProvider));
         handler.setDateTimeForNow(setDates);
@@ -24,8 +29,8 @@ public final class DatadamAuditing {
         var metadata = mapping.getRequiredPersistentEntity(type);
         for (var property : metadata) {
             long roles = ANNOTATIONS.stream().filter(property::isAnnotationPresent).count();
-            if (roles > 1 || roles > 0 && (property.isIdProperty() || property.isAnnotationPresent(DatadamTimeToLive.class)))
-                throw new IllegalArgumentException("Audit properties must have one role and cannot be @Id or TTL: " + property.getName());
+            if (roles > 1 || roles > 0 && (property.isIdProperty() || property.isVersionProperty() || property.isAnnotationPresent(DatadamTimeToLive.class)))
+                throw new IllegalArgumentException("Audit properties must have one role and cannot be @Id, @Version or TTL: " + property.getName());
         }
         var paths = mapping.findPersistentPropertyPaths(type, p -> ANNOTATIONS.stream().anyMatch(p::isAnnotationPresent));
         if (paths.stream().anyMatch(path -> path.getLength() > 1))

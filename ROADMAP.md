@@ -2,9 +2,9 @@
 
 Este documento acompanha a evolução da biblioteca, da base funcional atual até uma versão adequada para adoção em outros projetos. A ordem busca entregar utilidade em cada etapa, sem depender de uma reescrita futura.
 
-**Estado atual:** ciclo de entidades com TTL, IDs, auditoria e callbacks entregue, com 108 testes aprovados na última execução confirmada: 54 unitários e 54 de integração com Datadam real no Docker.
+**Estado atual:** ciclo de entidades com TTL, IDs, auditoria, callbacks e controle de versão, mais operações simples por JSONPath, com 161 testes aprovados na última execução confirmada: 80 unitários e 81 de integração com Datadam real no Docker.
 
-**Próxima entrega:** **2.1 — Optimistic locking com @Version**. A implementação desse recurso ainda não começou.
+**Próxima entrega:** **3.2 — Incrementos, arrays e merge**. A implementação desse recurso ainda não começou.
 
 ## Como vamos trabalhar
 
@@ -106,28 +106,40 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 ## 2. Concorrência e controle de versão
 
-### 2.1. Optimistic locking com `@Version`
+### 2.1. Optimistic locking com `@Version` — concluído
 
 **Benefício:** impedir que uma atualização sobrescreva silenciosamente uma alteração feita por outra conexão.
 
-- [ ] Definir a versão inicial e as regras de incremento para criação, atualização e exclusão.
-- [ ] Validar e implementar no Datadam uma comparação de versão e gravação atômicas; comparar no cliente antes de salvar não é suficiente.
-- [ ] Traduzir conflito de versão para `OptimisticLockingFailureException`.
-- [ ] Integrar versão com TTL, geração de IDs, auditoria e callbacks.
-- [ ] Testar duas conexões concorrentes, entidade removida/expirada e falha por UNIQUE sem incremento de versão indevido.
-- [ ] Documentar a diferença entre salvar uma entidade versionada e executar comandos nativos diretamente.
+- [x] Definir a versão inicial e as regras de incremento para criação, atualização e exclusão.
+- [x] Validar e implementar no Datadam uma comparação de versão e gravação atômicas; comparar no cliente antes de salvar não é suficiente.
+- [x] Traduzir conflito de versão para `OptimisticLockingFailureException`.
+- [x] Integrar versão com TTL, geração de IDs, auditoria e callbacks.
+- [x] Testar duas conexões concorrentes, entidade removida/expirada e falha por UNIQUE sem incremento de versão indevido.
+- [x] Documentar a diferença entre salvar uma entidade versionada e executar comandos nativos diretamente.
 
 **Concluído quando:** duas atualizações da mesma versão não puderem ter sucesso simultaneamente, e a operação recusada preservar documento, TTL e índices.
 
+**Entrega em 05/11/2026:** suporte a `@Version` do Spring Data em Long/Integer e primitivos, com comparação e gravação em EVAL isolado no servidor. Wrappers começam em null e são gravados como zero; primitivos começam em zero e são gravados como um. Cada atualização incrementa o contador; exclusões verificam a versão sem incrementá-la. Conteúdo e nova versão pertencem ao mesmo JSON.SET, inclusive sob UNIQUE. Consulte [concorrência com @Version](docs/optimistic-locking.md).
+
+**Validação:** 14 novos testes unitários e 15 novos testes de integração; 137 testes aprovados no total. Inclui disputa por duas conexões de pools independentes, recusa de criação duplicada, entidade removida/expirada, precisão acima de 2^53 e Long.MAX_VALUE, TTL absoluto, IDX/FT, UNIQUE, ACL, classes mutáveis, records, lotes, callbacks e HTTP. O exemplo `/versioned-notes` foi conferido também na aplicação local: criação em zero, atualização para um, PUT obsoleto com HTTP 409 e exclusão com a versão atual.
+
+**Decisões de contrato:** a versão determina o estado novo mesmo com ID atribuído; Persistable deve concordar. deleteById lê e exclui com a versão corrente; para exigir a versão vista pelo cliente, use delete(entity). Comandos diretos não recebem incremento/checagem automática, documentos sem versão exigem migração explícita e reutilizar o mesmo ID após exclusão/expiração pode produzir ABA. Os limites anteriores de transporte incerto, lotes sequenciais e durabilidade documento/TTL permanecem documentados.
+
 ## 3. Atualizações parciais JSON
 
-### 3.1. API de caminhos e alterações simples
+### 3.1. API de caminhos e alterações simples — concluído
 
-- [ ] Criar uma API tipada para ler, definir e remover valores por JSONPath.
-- [ ] Tratar corretamente as respostas diferentes de JSONPath e dos caminhos legados.
-- [ ] Definir a interação dessas alterações com `@Version` e auditoria; não permitir que uma API da biblioteca contorne silenciosamente essas políticas.
-- [ ] Testar caminhos ausentes, valores null, tipos incompatíveis, TTL e atualização dos índices.
-- [ ] Adicionar exemplos na aplicação de teste.
+- [x] Criar uma API tipada para ler, definir e remover valores por JSONPath.
+- [x] Tratar corretamente as respostas diferentes de JSONPath e dos caminhos legados.
+- [x] Definir a interação dessas alterações com `@Version` e auditoria; não permitir que uma API da biblioteca contorne silenciosamente essas políticas.
+- [x] Testar caminhos ausentes, valores null, tipos incompatíveis, TTL e atualização dos índices.
+- [x] Adicionar exemplos na aplicação de teste.
+
+**Entrega em 05/11/2026:** `template.json(Entity.class)` com `JsonPath<T>`, TypeReference, read/set/remove e JsonReadResult. Leituras normalizam JSONPath e caminhos legados sem achatar arrays do documento e distinguem chave ausente, nenhum match e JSON null. Escritas singulares não raiz enviam somente o caminho/valor em um comando nativo e protegem ID/TTL, inclusive nomes Jackson e aliases. Consulte [operações por JSONPath](docs/json-path-operations.md).
+
+**Validação:** 12 novos testes unitários e 12 novos testes de integração; 161 testes aprovados no total. Cobertura de caminhos e envelopes, coleções, null, tipos incompatíveis, ausência, TTL absoluto, IDX/FT, UNIQUE, ACL, expiração, políticas de entidades e HTTP. O exemplo `/customers/{id}/json` foi conferido também na aplicação local com leitura de array, alteração de cidade e remoção de nome, preservando os demais campos.
+
+**Decisões de contrato:** alterações parciais estão disponíveis para documentos simples; entidades com @Version, auditoria ou callbacks de gravação aplicáveis são recusadas antes do transporte, com orientação para usar save. O suporte parcial a essas políticas exige um protocolo adicional e não foi entregue neste item. Leituras podem usar seletores múltiplos, mas escritas aceitam somente membros/índices singulares, preservam a expiração sem reiniciar TTL e não criam chaves ausentes. O tipo declarado valida os valores da operação, sem validação integral do schema da entidade. Cada alteração é um comando; sequências não são transações e o servidor ainda reprocessa o documento inteiro internamente.
 
 ### 3.2. Incrementos, arrays e merge
 

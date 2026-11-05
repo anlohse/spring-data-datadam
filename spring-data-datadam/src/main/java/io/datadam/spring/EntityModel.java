@@ -13,6 +13,7 @@ public final class EntityModel<T> {
     private final Field id;
     private final EntityTtl ttl;
     private final DatadamGeneratedId generatedId;
+    private final EntityVersion version;
     public EntityModel(Class<T> type) {
         this.type = type;
         var document = type.getAnnotation(DatadamDocument.class);
@@ -40,6 +41,7 @@ public final class EntityModel<T> {
                 throw new IllegalArgumentException("ID generator bean name cannot be blank");
         }
         ttl = new EntityTtl(type, document);
+        version = new EntityVersion(type);
     }
     public Class<T> type() { return type; }
     public String prefix() { return prefix; }
@@ -55,7 +57,17 @@ public final class EntityModel<T> {
             || id.getType().isPrimitive() && value instanceof Number number && number.doubleValue() == 0;
     }
     /** State detection is local; it does not test whether an assigned ID is already stored. */
-    public boolean isNew(T entity) { return entity instanceof Persistable<?> persistable ? persistable.isNew() : hasMissingId(entity); }
+    public boolean isNew(T entity) { return entity instanceof Persistable<?> persistable ? persistable.isNew() : isVersioned() ? version.isNew(entity) : hasMissingId(entity); }
+    public boolean isVersioned() { return version.present(); }
+    public String versionProperty() { return version.property(); }
+    public Number version(T entity) { return version.value(entity); }
+    public Number nextVersion(T entity) { return version.next(entity); }
+    public void validateVersionState(T entity) {
+        if (isVersioned() && entity instanceof Persistable<?> persistable && persistable.isNew() != version.isNew(entity))
+            throw new IllegalArgumentException("Persistable.isNew must agree with @Version state");
+        if (isVersioned()) version.isNew(entity); // also validates negative values
+    }
+    public void applyVersion(T entity, Number value) { version.apply(entity, value); }
     public void validateGeneratedId(Object value) {
         Class<?> expected = switch (id.getType().getName()) {
             case "byte" -> Byte.class;
@@ -71,6 +83,10 @@ public final class EntityModel<T> {
     /** Prepare an immutable result before writing. Mutable input is changed only after a successful write. */
     @SuppressWarnings("unchecked")
     public <S extends T> S recordWithId(S entity, Object value) {
+        return recordWithValues(entity, Map.of(id.getName(), value));
+    }
+    @SuppressWarnings("unchecked")
+    public <S extends T> S recordWithValues(S entity, Map<String, Object> replacements) {
         if (!type.isRecord()) return entity;
         try {
             var components = type.getRecordComponents();
@@ -79,13 +95,13 @@ public final class EntityModel<T> {
             for (int i = 0; i < components.length; i++) {
                 var accessor = components[i].getAccessor();
                 ReflectionUtils.makeAccessible(accessor);
-                values[i] = components[i].getName().equals(id.getName()) ? value : accessor.invoke(entity);
+                values[i] = replacements.containsKey(components[i].getName()) ? replacements.get(components[i].getName()) : accessor.invoke(entity);
             }
             var constructor = type.getDeclaredConstructor(types);
             ReflectionUtils.makeAccessible(constructor);
             return (S) constructor.newInstance(values);
         } catch (ReflectiveOperationException e) {
-            throw new IllegalArgumentException("Cannot reconstruct record with its generated ID: " + type.getName(), e);
+            throw new IllegalArgumentException("Cannot reconstruct record with managed values: " + type.getName(), e);
         }
     }
     public void applyGeneratedId(T entity, Object value) {

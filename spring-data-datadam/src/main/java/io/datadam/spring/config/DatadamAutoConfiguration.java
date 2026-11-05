@@ -36,6 +36,18 @@ public class DatadamAutoConfiguration {
         java.util.Map<String, DatadamIdGenerator> idGenerators, org.springframework.beans.factory.BeanFactory beans,
         ObjectProvider<io.datadam.spring.auditing.DatadamAuditing> auditing) {
         return new DatadamTemplate(commands, mapper.getIfAvailable(() -> new ObjectMapper().findAndRegisterModules()), idGenerators,
-            org.springframework.data.mapping.callback.EntityCallbacks.create(beans), auditing.getIfAvailable());
+            org.springframework.data.mapping.callback.EntityCallbacks.create(beans), auditing.getIfAvailable(), type -> hasWriteCallbacks(beans, type));
+    }
+    private static boolean hasWriteCallbacks(org.springframework.beans.factory.BeanFactory beans, Class<?> entityType) {
+        if (!(beans instanceof org.springframework.beans.factory.ListableBeanFactory listable)) return true;
+        for (Class<?> callbackType : java.util.List.of(io.datadam.spring.callback.BeforeConvertCallback.class,
+            io.datadam.spring.callback.BeforeSaveCallback.class, io.datadam.spring.callback.AfterSaveCallback.class)) {
+            for (var callback : org.springframework.beans.factory.BeanFactoryUtils.beansOfTypeIncludingAncestors(listable, callbackType).values()) {
+                Class<?> target = org.springframework.core.ResolvableType.forClass(org.springframework.aop.support.AopUtils.getTargetClass(callback))
+                    .as(callbackType).resolveGeneric(0);
+                if (target == null || target.isAssignableFrom(entityType) || entityType.isAssignableFrom(target)) return true;
+            }
+        }
+        return false;
     }
 }
