@@ -28,17 +28,22 @@ O módulo expõe a mesma decisão em `EntityModel.isNew` e no `EntityInformation
 | Entidade/ID | Decisão local |
 |---|---|
 | Implementa `Persistable` | Usa `Persistable.isNew()` |
+| Tem `@Version` wrapper null, sem Persistable | Nova, mesmo com ID atribuído |
+| Tem `@Version` primitivo zero, sem Persistable | Nova, mesmo com ID atribuído |
+| Tem `@Version` válido e já persistido, sem Persistable | Não nova |
 | ID null | Nova |
 | ID String vazio ou somente espaços | Nova |
 | ID numérico primitivo igual a zero | Nova |
 | ID numérico wrapper igual a zero | Não nova: zero é um valor atribuído |
 | Demais IDs presentes | Não nova |
 
-Essa decisão não consulta o Datadam e não comprova que a chave existe. Uma entidade com ID atribuído pode ainda não estar no banco. Para distinguir explicitamente esse caso, implemente `Persistable`.
+Essa decisão não consulta o Datadam e não comprova que a chave existe. Uma entidade com ID atribuído pode ainda não estar no banco. Sem @Version, implemente `Persistable` para distinguir explicitamente esse caso.
 
-`@Version` ainda não participa da detecção; seu suporte pertence à etapa 2.1. A auditoria e os callbacks do item 1.3 usam essa decisão local; consulte a documentação em docs/auditing-and-callbacks.md.
+Desde o item 2.1, `@Version` participa antes da inspeção do ID. Com Persistable, as duas decisões precisam concordar. A auditoria e os callbacks usam essa mesma decisão local; consulte [concorrência com @Version](optimistic-locking.md) e [auditoria e callbacks](auditing-and-callbacks.md).
 
 ### Política de gravação
+
+A tabela abaixo se aplica a entidades **sem @Version**. Entidades versionadas sempre usam criação exclusiva ou atualização condicionada à versão persistida, conforme o documento de concorrência.
 
 | Caso | Comportamento |
 |---|---|

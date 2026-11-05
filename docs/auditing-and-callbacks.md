@@ -41,7 +41,7 @@ Prefira Instant para persistência. Também foram validadas conversões para Lon
 
 O estado é capturado uma vez na entrada de save, antes de callbacks, auditoria e geração de ID, pela política do item 1.2. Entidades novas recebem dados de criação; atualizações recebem apenas dados de alteração. Classes mutáveis, campos herdados e records são suportados. Em records, o handler retorna novas instâncias; utilize sempre o retorno de save/saveAll.
 
-A detecção não consulta o banco. Um ID atribuído normalmente indica estado existente, mesmo que a chave ainda não esteja armazenada. Use `Persistable.isNew() == true` para declarar explicitamente uma criação com ID atribuído.
+A detecção não consulta o banco. Sem @Version, um ID atribuído normalmente indica estado existente, mesmo que a chave ainda não esteja armazenada; use `Persistable.isNew() == true` para declarar explicitamente uma criação. Com @Version, uma versão wrapper null ou primitiva zero indica criação mesmo com ID atribuído; Persistable, se implementado, precisa concordar.
 
 Os campos de criação fornecidos na entidade são preservados em atualizações. Isso não significa buscar os valores originais no banco nem impedir que a aplicação entregue valores forjados antes de chamar a biblioteca. Uma API deve receber DTOs sem campos de auditoria e carregar a entidade existente antes de modificar seus campos de negócio, como faz `/audited-notes`.
 
@@ -109,7 +109,7 @@ Uma falha de AfterSave é propagada como `AfterSaveCallbackException`: a escrita
 
 AfterConvert não grava. Enriquecimentos devem preferir campos ignorados no JSON para não serem persistidos por um save posterior. Autores complexos devem ser tratados como valores imutáveis: a proteção não é um mecanismo de segurança nem um snapshot profundo de todo o grafo.
 
-Os limites de transporte, lote sequencial e durabilidade documento/TTL com UNIQUE continuam documentados nos itens anteriores. Não há optimistic locking ou transações nesta entrega.
+Os limites de transporte, lote sequencial e durabilidade documento/TTL com UNIQUE continuam documentados nos itens anteriores. O item 2.1 adiciona [optimistic locking com @Version](optimistic-locking.md), integrado à detecção de estado e aos callbacks. BeforeConvert/BeforeSave recebem a versão esperada e AfterSave recebe a nova versão; callbacks não podem alterá-la. Transações continuam fora deste escopo.
 
 ## Configuração manual
 

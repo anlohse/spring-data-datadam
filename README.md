@@ -91,6 +91,18 @@ public record Customer(@Id String id, String email, String city, int age) {}
 
 A ordem dos campos em um índice composto é parte do contrato: igualdade nos campos iniciais e faixa no seguinte selecionam uma fatia contígua. Campos ausentes ou numéricos inválidos excluem o documento de IDX. FT mantém documentos que não têm todos os campos. UNIQUE é imposto atomicamente pelo servidor e convertido em `DuplicateKeyException`.
 
+## Controle de concorrência
+
+Adicione `@Version Long version` para exigir a versão atual ao atualizar ou excluir. Uma entidade nova começa com versão null e é persistida com zero; cada atualização incrementa o contador. A comparação e a gravação acontecem no servidor: uma versão obsoleta gera `OptimisticLockingFailureException`, preservando documento, TTL e índices.
+
+O exemplo `/versioned-notes` combina versão, ID gerado, auditoria, callbacks e TTL. PUT recebe a versão esperada no corpo e DELETE em `?version=...`; conflitos retornam HTTP 409. Consulte [concorrência com @Version](docs/optimistic-locking.md) para tipos, exclusões, migração de documentos existentes e limites dos comandos nativos.
+
+## Operações por JSONPath
+
+`template.json(Customer.class)` oferece read, set e remove com `JsonPath<T>`, incluindo TypeReference para coleções. A leitura distingue chave ausente, caminho sem matches e JSON null e normaliza as respostas JSONPath/legadas. Alterações simples usam comandos JSON nativos, preservam a expiração e atualizam IDX/FT.
+
+A API protege o ID e o campo de TTL e recusa alterações em entidades com versão, auditoria ou callbacks de gravação; nesses casos, use save. Consulte [operações por JSONPath](docs/json-path-operations.md) para exemplos, respostas, limites e o endpoint `/customers/{id}/json`.
+
 ## IDs e entidades novas
 
 Adicione `@DatadamGeneratedId` ao campo `@Id` para gerar UUID quando o ID estiver ausente. O padrão aceita String e UUID; beans `DatadamIdGenerator` permitem estratégias próprias. IDs informados são preservados. Use sempre o retorno de `save` e `saveAll`: records recebem uma nova instância com o ID, enquanto classes mutáveis são preenchidas após sucesso.
