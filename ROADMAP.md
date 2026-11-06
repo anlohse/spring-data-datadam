@@ -2,9 +2,9 @@
 
 Este documento acompanha a evolução da biblioteca, da base funcional atual até uma versão adequada para adoção em outros projetos. A ordem busca entregar utilidade em cada etapa, sem depender de uma reescrita futura.
 
-**Estado atual:** ciclo de entidades com TTL, IDs, auditoria, callbacks e controle de versão, mais operações simples por JSONPath, com 161 testes aprovados na última execução confirmada: 80 unitários e 81 de integração com Datadam real no Docker.
+**Estado atual:** ciclo de entidades com TTL, IDs, auditoria, callbacks e controle de versão, mais operações JSON com incrementos, arrays e merge, com 186 testes aprovados na última execução confirmada: 90 unitários e 96 de integração com Datadam real no Docker.
 
-**Próxima entrega:** **3.2 — Incrementos, arrays e merge**. A implementação desse recurso ainda não começou.
+**Próxima entrega:** **4.1 — Mapeamento e CRUD HASH**. A implementação desse recurso ainda não começou.
 
 ## Como vamos trabalhar
 
@@ -141,14 +141,20 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Decisões de contrato:** alterações parciais estão disponíveis para documentos simples; entidades com @Version, auditoria ou callbacks de gravação aplicáveis são recusadas antes do transporte, com orientação para usar save. O suporte parcial a essas políticas exige um protocolo adicional e não foi entregue neste item. Leituras podem usar seletores múltiplos, mas escritas aceitam somente membros/índices singulares, preservam a expiração sem reiniciar TTL e não criam chaves ausentes. O tipo declarado valida os valores da operação, sem validação integral do schema da entidade. Cada alteração é um comando; sequências não são transações e o servidor ainda reprocessa o documento inteiro internamente.
 
-### 3.2. Incrementos, arrays e merge
+### 3.2. Incrementos, arrays e merge — concluído
 
-- [ ] Expor incrementos numéricos, operações de arrays e merge de objetos com contratos de retorno claros.
-- [ ] Definir os limites de atomicidade: uma sequência de comandos não deve ser apresentada como uma única operação atômica.
-- [ ] Testar concorrência, falhas por UNIQUE e manutenção dos índices após cada tipo de alteração.
-- [ ] Documentar o custo do servidor: uma alteração parcial JSON pode continuar exigindo reprocessar o documento inteiro no Datadam.
+- [x] Expor incrementos numéricos, operações de arrays e merge de objetos com contratos de retorno claros.
+- [x] Definir os limites de atomicidade: uma sequência de comandos não deve ser apresentada como uma única operação atômica.
+- [x] Testar concorrência, falhas por UNIQUE e manutenção dos índices após cada tipo de alteração.
+- [x] Documentar o custo do servidor: uma alteração parcial JSON pode continuar exigindo reprocessar o documento inteiro no Datadam.
 
 **Concluído quando:** a aplicação puder alterar partes de um documento sem montar sua substituição completa e sem perder as garantias documentadas da entidade.
+
+**Entrega em 05/11/2026:** increment/multiply; arrayAppend, arrayInsert, arrayPop, arrayTrim, arrayLength e arrayIndex; merge de objetos RFC 7386. Retornos normalizados para JSONPath/legado, promoção numérica preservada e JsonPopResult distingue JSON null removido de nenhum elemento removido. JsonMutationDecodingException identifica falhas ao interpretar o resultado de uma mutação já enviada. Consulte [incrementos, arrays e merge](docs/json-native-mutations.md).
+
+**Validação:** 10 novos testes unitários e 15 novos testes de integração; 186 testes aprovados no total. Inclui incrementos/appends/merges concorrentes por pools independentes, UNIQUE em número, array, posição de array e membro de merge, preservação de TTL absoluto e IDX/FT, tipos, null, limites de índices, overflow, erros numéricos, expiração, ACL e HTTP. O exemplo local foi conferido com incremento de idade, append/pop de tags e merge que remove um membro null preservando os demais.
+
+**Decisões de contrato:** mantidas as proteções de 3.1: escritas singulares não raiz, sem alterar ID/TTL e sem contornar versão, auditoria ou callbacks. Incrementos retornam Number porque overflow int64 pode promover a float; pop distingue nil RESP de JSON null. Merge aceita patch de objeto, combina Maps aninhados e preserva nulls de remoção mesmo com mapper NON_NULL; OK não prova que houve matches. Cada alteração é um comando atômico no servidor, mas uma sequência não é transação e sucessos anteriores permanecem após falha. O servidor continua reprocessando o documento inteiro, e falhas de transporte/conversão após envio não autorizam repetição automática.
 
 ## 4. Persistência em HASH
 

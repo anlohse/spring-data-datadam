@@ -58,7 +58,7 @@ As regras nativas são preservadas:
 
 O tipo do JsonPath valida o valor enviado ou recebido; não é uma validação completa do schema da entidade. Por exemplo, declarar deliberadamente um caminho de Integer como String pode produzir um documento que o repositório não consegue materializar depois. Use tipos coerentes com seu modelo. A API não executa Bean Validation ou validações do construtor da entidade nas alterações parciais.
 
-Não há NX/XX, incrementos, append de arrays ou merge nesta API inicial; essas evoluções pertencem ao item 3.2.
+O item 3.2 adiciona [incrementos, operações de arrays e merge](json-native-mutations.md), com as mesmas proteções para escritas. NX/XX não fazem parte desta API.
 
 ## Políticas da entidade
 

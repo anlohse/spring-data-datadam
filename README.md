@@ -103,6 +103,8 @@ O exemplo `/versioned-notes` combina versão, ID gerado, auditoria, callbacks e 
 
 A API protege o ID e o campo de TTL e recusa alterações em entidades com versão, auditoria ou callbacks de gravação; nesses casos, use save. Consulte [operações por JSONPath](docs/json-path-operations.md) para exemplos, respostas, limites e o endpoint `/customers/{id}/json`.
 
+O mesmo objeto oferece increment/multiply, arrayAppend/arrayInsert/arrayPop/arrayTrim, arrayLength/arrayIndex e merge de objetos. Cada alteração usa um comando nativo e preserva o TTL; sequências de chamadas não são transações. Consulte [incrementos, arrays e merge](docs/json-native-mutations.md) para retornos, concorrência, UNIQUE e os novos exemplos HTTP.
+
 ## IDs e entidades novas
 
 Adicione `@DatadamGeneratedId` ao campo `@Id` para gerar UUID quando o ID estiver ausente. O padrão aceita String e UUID; beans `DatadamIdGenerator` permitem estratégias próprias. IDs informados são preservados. Use sempre o retorno de `save` e `saveAll`: records recebem uma nova instância com o ID, enquanto classes mutáveis são preenchidas após sucesso.
