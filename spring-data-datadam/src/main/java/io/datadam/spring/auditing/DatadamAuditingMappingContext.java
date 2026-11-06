@@ -12,7 +12,8 @@ import org.springframework.data.util.TypeInformation;
 final class DatadamAuditingMappingContext extends AbstractMappingContext<BasicPersistentEntity<?, DatadamAuditingMappingContext.AuditProperty>, DatadamAuditingMappingContext.AuditProperty> {
     DatadamAuditingMappingContext() {
         setSimpleTypeHolder(new SimpleTypeHolder(Set.of(Instant.class, LocalDateTime.class, LocalDate.class,
-            LocalTime.class, OffsetDateTime.class, ZonedDateTime.class, Duration.class, UUID.class), true));
+            LocalTime.class, OffsetDateTime.class, ZonedDateTime.class, Duration.class, UUID.class,
+            java.math.BigDecimal.class, java.math.BigInteger.class), true));
     }
     @Override protected <T> BasicPersistentEntity<?, AuditProperty> createPersistentEntity(TypeInformation<T> type) {
         return new BasicPersistentEntity<>(type);

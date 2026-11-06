@@ -2,9 +2,9 @@
 
 Este documento acompanha a evolução da biblioteca, da base funcional atual até uma versão adequada para adoção em outros projetos. A ordem busca entregar utilidade em cada etapa, sem depender de uma reescrita futura.
 
-**Estado atual:** ciclo de entidades com TTL, IDs, auditoria, callbacks e controle de versão, mais operações JSON com incrementos, arrays e merge, com 186 testes aprovados na última execução confirmada: 90 unitários e 96 de integração com Datadam real no Docker.
+**Estado atual:** CRUD e consultas nativas IDX/FT em JSON e HASH, com TTL, IDs, auditoria, callbacks e controle de versão, mais operações JSON com incrementos, arrays e merge. São 234 testes Java aprovados na última execução confirmada: 108 unitários e 126 de integração com Datadam real no Docker. A evolução do servidor para HASH passou também por 184 testes nativos e pela integração/persistência C++.
 
-**Próxima entrega:** **4.1 — Mapeamento e CRUD HASH**. A implementação desse recurso ainda não começou.
+**Próxima entrega:** **5.1 — Projeções**. A implementação desse recurso ainda não começou.
 
 ## Como vamos trabalhar
 
@@ -158,22 +158,36 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 ## 4. Persistência em HASH
 
-### 4.1. Mapeamento e CRUD
+### 4.1. Mapeamento e CRUD — concluído
 
-- [ ] Permitir escolher explicitamente HASH ou JSON no mapeamento da entidade.
-- [ ] Definir conversão de números, booleanos, enums, campos ausentes e null; deixar explícito como tratar estruturas aninhadas e coleções.
-- [ ] Implementar CRUD HASH com substituição correta dos campos removidos, preservando TTL e respeitando UNIQUE.
-- [ ] Integrar IDs, auditoria e `@Version`, verificando as garantias atômicas do formato HASH.
-- [ ] Testar isolamento de prefixos e coexistência de entidades HASH e JSON.
+- [x] Permitir escolher explicitamente HASH ou JSON no mapeamento da entidade.
+- [x] Definir conversão de números, booleanos, enums, campos ausentes e null; deixar explícito como tratar estruturas aninhadas e coleções.
+- [x] Implementar CRUD HASH com substituição correta dos campos removidos, preservando TTL e respeitando UNIQUE.
+- [x] Integrar IDs, auditoria e `@Version`, verificando as garantias atômicas do formato HASH.
+- [x] Testar isolamento de prefixos e coexistência de entidades HASH e JSON.
 
-### 4.2. Índices e consultas sobre HASH
+**Entrega em 05/11/2026:** `@DatadamDocument(storage = DatadamStorage.HASH)`, com JSON como padrão; CRUD/listagem/count com formato próprio e o mesmo ciclo de ID, auditoria, callbacks, TTL e versão. Escalares viram campos textuais, null omite/remove campos, objetos/coleções viram JSON dentro de cada campo HASH. Inclui exemplo HTTP `/hash-notes`. Consulte [entidades HASH](docs/hash-entities.md).
 
-- [ ] Gerar e validar definições `ON HASH` e seus nomes/aliases de campos.
-- [ ] Adaptar consultas anotadas, derivadas e programáticas para o formato HASH.
-- [ ] Testar diferenças de TAG, separadores, valores ausentes e NUMERIC entre HASH e JSON.
-- [ ] Adicionar à aplicação um exemplo HASH equivalente ao exemplo JSON.
+**Validação:** 9 novos testes unitários e 14 novos testes de integração; 209 testes Java aprovados. Cobertura de tipos, aliases, precisão decimal/temporal, bytes/arrays, Duration TTL, substituição integral, campos removidos, estado final UNIQUE composto, preservação integral em recusa, concorrência por pools independentes, versão int64, mutáveis/records, expiração, ACL, coexistência/WRONGTYPE e HTTP. O servidor passou por 184 testes nativos e pela suíte de integração/persistência, incluindo recusa UNIQUE dentro de Lua e preservação após reabrir o banco.
+
+**Dependência de servidor:** a entrega acrescenta HREPLACE ao Datadam C++, para substituir campos e versão na mesma transação nativa, preservando TTL e validando o estado final UNIQUE. A investigação também encontrou e corrigiu a representação de undo que confundia ausência de entrada no batch com tombstone e podia apagar campos após uma recusa. A imagem Docker local foi reconstruída; o patch e as instruções estão em [server-patches](server-patches/README.md). HASH não possui fallback HSET/HDEL em servidores antigos. JSON mantém os comandos anteriores.
+
+**Decisões de contrato:** prefixos exclusivos, nenhuma conversão automática JSON→HASH, propriedades Object na raiz recusadas por ambiguidade e estruturas aninhadas não achatadas. Mantidos os limites de transporte, lotes sequenciais, ABA e durabilidade conjunta de conteúdo/TTL após crash com UNIQUE. Schema e consultas HASH na biblioteca são recusados explicitamente até 4.2; índices HASH nos testes são fixtures administrativas, sem antecipar essa etapa.
+
+### 4.2. Índices e consultas sobre HASH — concluído
+
+- [x] Gerar e validar definições `ON HASH` e seus nomes/aliases de campos.
+- [x] Adaptar consultas anotadas, derivadas e programáticas para o formato HASH.
+- [x] Testar diferenças de TAG, separadores, valores ausentes e NUMERIC entre HASH e JSON.
+- [x] Adicionar à aplicação um exemplo HASH equivalente ao exemplo JSON.
 
 **Concluído quando:** o mesmo conjunto de garantias públicas de CRUD e consultas funcionar nos dois formatos, com suas diferenças documentadas.
+
+**Entrega em 05/11/2026:** schema ON HASH com criação idempotente, backfill e validação de formato, campos, aliases, caixa e separadores. IDX/FT materializam entidades a partir da própria resposta, sem HGETALL adicional; consultas declaradas, programáticas e derivadas usam os caminhos HASH e os aliases nativos. IndexField.separator expõe separadores TAG para os dois formatos. Inclui HashCustomer/HashCustomerRepository e HTTP `/hash-customers`, com faixas, ordem, paginação, buscas e labels. Consulte [índices e consultas HASH](docs/hash-indexes-and-queries.md).
+
+**Validação:** 9 novos testes unitários e 16 novos testes de integração; 234 testes Java aprovados. Cobertura de DDL e drift sem remoção de índices, aliases/nome Jackson, faixa/ordem/totais, Page/Slice/Top, count/exists, IDX/FT/derivação, separadores/caixa, listas JSON dentro do HASH, campos ausentes/NUMERIC inválido, atualização/remoção de campos, UNIQUE, TTL/expiração, callbacks e ACL de conteúdo/total. O leitor de teste não possui HGETALL e ainda assim recebe entidades completas diretamente das consultas. As rotas IDX/derivada/FT/labels foram conferidas na aplicação local.
+
+**Decisões de contrato:** IDX HASH não aceita AS, então alias deve ser igual ao campo armazenado; FT aceita aliases. FT HASH divide TAG por vírgula por padrão; IDX sem separador mantém igualdade do campo completo. Derivação recusa TAGs divididos em tokens para igualdade/ordenação escalar, em vez de alterar a semântica ou pós-filtrar páginas; pode selecionar um IDX sem separador ou um plano FT numérico compatível. Objetos/coleções HASH não são achatados nem indexados como arrays JSON automaticamente. O patch C++ 4.1 permanece necessário para a escrita, sem novas alterações de servidor nesta etapa; projeções parciais ficam para 5.1.
 
 ## 5. Consultas mais completas
 

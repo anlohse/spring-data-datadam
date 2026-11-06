@@ -17,6 +17,7 @@ import org.springframework.data.mapping.callback.EntityCallbacks;
 public class DatadamTemplate {
     private static final String SAVE_WITH_TTL = loadSaveWithTtl();
     private static final String SAVE_VERSIONED = loadScript("save-versioned-json.lua");
+    private static final String SAVE_HASH = loadScript("save-hash.lua");
     private final DatadamCommands commands;
     private final ObjectMapper mapper;
     private final Map<String, DatadamIdGenerator> idGenerators;
@@ -43,7 +44,9 @@ public class DatadamTemplate {
     }
     public DatadamCommands commands() { return commands; }
     public <T> DatadamJsonOperations<T> json(Class<T> type) {
-        return new DatadamJsonOperations<>(commands, mapper, new EntityModel<>(type), partialWriteCallbacks);
+        var model = new EntityModel<>(type);
+        if (model.isHash()) throw new IllegalArgumentException("JSON operations require JSON storage");
+        return new DatadamJsonOperations<>(commands, mapper, model, partialWriteCallbacks);
     }
     public <T, S extends T> S save(S entity, EntityModel<T> model) {
         Objects.requireNonNull(entity);
@@ -92,7 +95,19 @@ public class DatadamTemplate {
                     throw new IllegalArgumentException("@Version must serialize as its exact JSON integer value");
             }
             Object reply;
-            if (model.isVersioned()) {
+            if (model.isHash()) {
+                var args = new ArrayList<Object>();
+                Collections.addAll(args, SAVE_HASH, 1, key, model.isVersioned() ? isNew ? "CREATE" : "UPDATE" : insertOnly ? "CREATE" : "UPSERT",
+                    model.isVersioned() ? jsonProperty(model.type(), model.versionProperty()) : "", initialVersion == null ? "" : initialVersion,
+                    ttl.isPresent() ? ttl.getAsLong() : "");
+                args.addAll(new HashEntityCodec(mapper).encode(json));
+                reply = commands.execute("EVAL", args.toArray());
+                if (!(reply instanceof Number number) || number.longValue() != 1) {
+                    if (model.isVersioned()) throw new OptimisticLockingFailureException("Versioned HASH save failed: duplicate creation, missing entity or stale version");
+                    throw new DuplicateKeyException("Cannot insert HASH entity: its ID already exists");
+                }
+            }
+            else if (model.isVersioned()) {
                 reply = commands.execute("EVAL", SAVE_VERSIONED, 1, key, versionPath(model),
                     initialVersion == null ? "" : initialVersion, isNew ? "CREATE" : "UPDATE", json, ttl.isPresent() ? ttl.getAsLong() : "");
                 if (!(reply instanceof Number number) || number.longValue() != 1)
@@ -115,6 +130,14 @@ public class DatadamTemplate {
         catch (JsonProcessingException e) { throw new InvalidDataAccessApiUsageException("Cannot serialize entity", e); }
     }
     public void validateModel(EntityModel<?> model) {
+        if (model.isHash()) {
+            jsonProperty(model.type(), model.idProperty());
+            for (var property : mapper.getDeserializationConfig().introspect(mapper.constructType(model.type())).findProperties())
+                if (property.getPrimaryType().hasRawClass(Object.class))
+                    throw new IllegalArgumentException("HASH root properties require declared types; Object is ambiguous: " + property.getName());
+                else if (property.getPrimaryType().hasRawClass(char[].class))
+                    throw new IllegalArgumentException("HASH char[] properties are ambiguous; use String or List<Character>");
+        }
         if (model.generatesId()) generator(model).validate(model.idGenerationContext());
         if (model.isVersioned()) {
             jsonProperty(model.type(), model.versionProperty());
@@ -163,12 +186,19 @@ public class DatadamTemplate {
     public <T> void delete(T entity, EntityModel<T> model) {
         Objects.requireNonNull(entity);
         validateModel(model);
-        if (!model.isVersioned()) { commands.execute("DEL", model.key(model.id(entity))); return; }
+        if (!model.isVersioned()) { deleteById(model.id(entity), model); return; }
         model.validateVersionState(entity);
         if (model.isNew(entity)) throw new OptimisticLockingFailureException("Cannot delete an unsaved versioned entity");
-        Object reply = commands.execute("EVAL", SAVE_VERSIONED, 1, model.key(model.id(entity)), versionPath(model), model.version(entity), "DELETE", "", "");
+        Object reply = model.isHash()
+            ? commands.execute("EVAL", SAVE_HASH, 1, model.key(model.id(entity)), "DELETE", jsonProperty(model.type(), model.versionProperty()), model.version(entity), "")
+            : commands.execute("EVAL", SAVE_VERSIONED, 1, model.key(model.id(entity)), versionPath(model), model.version(entity), "DELETE", "", "");
         if (!(reply instanceof Number number) || number.longValue() != 1)
             throw new OptimisticLockingFailureException("Versioned delete failed: missing entity or stale version");
+    }
+    public <T> void deleteById(Object id, EntityModel<T> model) {
+        if (model.isVersioned()) { findById(id, model).ifPresent(entity -> delete(entity, model)); return; }
+        if (model.isHash()) commands.execute("EVAL", SAVE_HASH, 1, model.key(id), "DELETE_ANY", "", "", "");
+        else commands.execute("DEL", model.key(id));
     }
     /** Remove expiration only. Future saves with an explicit/default positive TTL apply it again. */
     public boolean persist(Object id, EntityModel<?> model) {
@@ -182,8 +212,13 @@ public class DatadamTemplate {
         catch (IOException e) { throw new ExceptionInInitializerError(e); }
     }
     public <T> Optional<T> findById(Object id, EntityModel<T> model) {
-        Object json = commands.execute("JSON.GET", model.key(id)); // no path: document, not JSONPath array
+        Object json = loadKey(model.key(id), model);
         return json == null ? Optional.empty() : Optional.of(read(json, model, model.key(id)));
+    }
+    private Object loadKey(String key, EntityModel<?> model) {
+        if (!model.isHash()) return commands.execute("JSON.GET", key);
+        Object fields = commands.execute("HGETALL", key);
+        return DatadamCommands.array(fields).isEmpty() ? null : new HashEntityCodec(mapper).decode(fields, model.type());
     }
     public <T> Page<T> query(String index, CompoundQuery query, Pageable pageable, EntityModel<T> model) {
         model.index(index, DatadamIndex.Kind.COMPOUND);
@@ -248,6 +283,11 @@ public class DatadamTemplate {
         public SearchResults { content = List.copyOf(content); }
     }
     /** Resolve Java property names through Jackson, including @JsonProperty and naming strategies. */
+    public String indexPath(EntityModel<?> model, String property) {
+        if (!model.isHash()) return jsonPath(model.type(), property);
+        if (property.contains(".")) throw new IllegalArgumentException("HASH derived queries require root fields; nested objects are JSON inside one HASH field");
+        return jsonProperty(model.type(), property);
+    }
     public String jsonPath(Class<?> entity, String property) {
         StringBuilder path = new StringBuilder("$");
         var type = mapper.constructType(entity);
@@ -271,7 +311,7 @@ public class DatadamTemplate {
     public <T> List<T> findAll(EntityModel<T> model) {
         List<T> result = new ArrayList<>();
         for (String key : keys(model)) {
-            Object json = commands.execute("JSON.GET", key);
+            Object json = loadKey(key, model);
             if (json != null) result.add(read(json, model, key));
         }
         return result;
@@ -280,7 +320,7 @@ public class DatadamTemplate {
         List<String> keys = new ArrayList<>();
         String cursor = "0";
         do {
-            var result = DatadamCommands.array(commands.execute("SCAN", cursor, "MATCH", model.prefix() + "*", "COUNT", 256, "TYPE", "ReJSON-RL"));
+            var result = DatadamCommands.array(commands.execute("SCAN", cursor, "MATCH", model.prefix() + "*", "COUNT", 256, "TYPE", model.isHash() ? "hash" : "ReJSON-RL"));
             cursor = result.get(0).toString();
             DatadamCommands.array(result.get(1)).forEach(key -> keys.add(key.toString()));
         } while (!cursor.equals("0"));
@@ -293,8 +333,8 @@ public class DatadamTemplate {
         for (int i = offset; i < array.size(); i += 2) {
             String key = array.get(i).toString();
             if (!key.startsWith(model.prefix())) throw new DataRetrievalFailureException("Index returned a different entity prefix");
-            var fields = DatadamCommands.map(array.get(i + 1));
-            Object json = fields.get("$");
+            Object json = model.isHash() ? new HashEntityCodec(mapper).decode(array.get(i + 1), model.type())
+                : DatadamCommands.map(array.get(i + 1)).get("$");
             if (json == null) throw new DataRetrievalFailureException("Expected JSON document content");
             entities.add(read(json, model, key));
         }

@@ -91,6 +91,14 @@ public record Customer(@Id String id, String email, String city, int age) {}
 
 A ordem dos campos em um índice composto é parte do contrato: igualdade nos campos iniciais e faixa no seguinte selecionam uma fatia contígua. Campos ausentes ou numéricos inválidos excluem o documento de IDX. FT mantém documentos que não têm todos os campos. UNIQUE é imposto atomicamente pelo servidor e convertido em `DuplicateKeyException`.
 
+## Formato HASH
+
+Use `@DatadamDocument(prefix = "...", storage = DatadamStorage.HASH)` para persistir a entidade como HASH, com a mesma API CRUD, TTL, geração de IDs, auditoria, callbacks e versão. JSON continua sendo o padrão. Campos null são omitidos e coleções/objetos aninhados ficam como JSON dentro de cada campo HASH.
+
+O CRUD HASH exige a extensão Datadam HREPLACE e a correção de rollback incluídas no [patch do servidor](server-patches/README.md). A imagem local foi atualizada; outros servidores precisam dessa evolução. Consulte [entidades HASH](docs/hash-entities.md) para conversões, atomicidade e `/hash-notes`.
+
+Schema ON HASH e consultas IDX/FT declaradas, derivadas e programáticas estão disponíveis com `/hash-customers`. `IndexField.separator` explicita a divisão de TAGs; IDX HASH exige alias igual ao campo e FT permite aliases próprios. Consulte [índices e consultas HASH](docs/hash-indexes-and-queries.md) para diferenças de TAG/NUMERIC e limites de igualdade na derivação.
+
 ## Controle de concorrência
 
 Adicione `@Version Long version` para exigir a versão atual ao atualizar ou excluir. Uma entidade nova começa com versão null e é persistida com zero; cada atualização incrementa o contador. A comparação e a gravação acontecem no servidor: uma versão obsoleta gera `OptimisticLockingFailureException`, preservando documento, TTL e índices.
