@@ -63,6 +63,122 @@ public final class DatadamJsonOperations<T> {
         if (!(reply instanceof Number count)) throw new DataRetrievalFailureException("Expected JSON.DEL count");
         return count.longValue();
     }
+    /** Numeric promotion follows the server, not the declared input type (int64 overflow can produce a float). */
+    public List<Number> increment(Object id, JsonPath<? extends Number> path, Number amount) {
+        return arithmetic("JSON.NUMINCRBY", id, path, amount);
+    }
+    public List<Number> multiply(Object id, JsonPath<? extends Number> path, Number factor) {
+        return arithmetic("JSON.NUMMULTBY", id, path, factor);
+    }
+    private List<Number> arithmetic(String command, Object id, JsonPath<? extends Number> path, Number amount) {
+        checkWrite(path);
+        JsonNode number = encode(Objects.requireNonNull(amount), null);
+        if (!number.isNumber() || !Double.isFinite(number.doubleValue())) throw new IllegalArgumentException("Operand must serialize as a finite JSON number");
+        String key = model.key(id);
+        Object reply = commands.execute(command, key, path.expression(), number.toString());
+        try {
+            JsonNode result = mapper.readTree(reply.toString());
+            var values = new ArrayList<Number>();
+            if (path.isJsonPath()) {
+                if (!result.isArray()) throw new DataRetrievalFailureException("Expected numeric match array");
+                for (var value : result) values.add(numeric(value));
+            } else values.add(numeric(result));
+            return immutable(values);
+        } catch (JsonProcessingException | RuntimeException e) { throw new JsonMutationDecodingException(key, command, e); }
+    }
+    private Number numeric(JsonNode node) {
+        if (node.isNull()) return null;
+        if (!node.isNumber()) throw new DataRetrievalFailureException("Expected JSON number");
+        return node.numberValue();
+    }
+    public <V> List<Long> arrayAppend(Object id, JsonPath<List<V>> path, List<? extends V> values) {
+        return arrayAdd("JSON.ARRAPPEND", id, path, null, values);
+    }
+    public <V> List<Long> arrayInsert(Object id, JsonPath<List<V>> path, long index, List<? extends V> values) {
+        return arrayAdd("JSON.ARRINSERT", id, path, index, values);
+    }
+    private <V> List<Long> arrayAdd(String command, Object id, JsonPath<List<V>> path, Long index, List<? extends V> values) {
+        checkWrite(path); JavaType element = elementType(path);
+        if (values == null || values.isEmpty()) throw new IllegalArgumentException("At least one array value is required");
+        var args = new ArrayList<Object>(); Collections.addAll(args, model.key(id), path.expression());
+        if (index != null) args.add(index);
+        for (var value : values) args.add(encode(value, element).toString());
+        Object reply = commands.execute(command, args.toArray());
+        return mutationLengths(command, args.get(0).toString(), path, reply);
+    }
+    public List<Long> arrayTrim(Object id, JsonPath<? extends List<?>> path, long start, long stop) {
+        checkWrite(path); elementType(path); String key = model.key(id);
+        return mutationLengths("JSON.ARRTRIM", key, path, commands.execute("JSON.ARRTRIM", key, path.expression(), start, stop));
+    }
+    public <V> List<JsonPopResult<V>> arrayPop(Object id, JsonPath<List<V>> path) { return arrayPop(id, path, -1); }
+    public <V> List<JsonPopResult<V>> arrayPop(Object id, JsonPath<List<V>> path, long index) {
+        checkWrite(path); JavaType element = elementType(path); String key = model.key(id);
+        Object reply = commands.execute("JSON.ARRPOP", key, path.expression(), index);
+        try {
+            var results = new ArrayList<JsonPopResult<V>>();
+            for (var value : matches(reply, path)) {
+                V decoded = value == null ? null : mapper.readValue(value.toString(), element);
+                results.add(new JsonPopResult<>(value != null, decoded));
+            }
+            return immutable(results);
+        } catch (JsonProcessingException | RuntimeException e) { throw new JsonMutationDecodingException(key, "JSON.ARRPOP", e); }
+    }
+    public List<Long> arrayLength(Object id, JsonPath<? extends List<?>> path) {
+        elementType(path);
+        return lengths(commands.execute("JSON.ARRLEN", model.key(id), path.expression()), path);
+    }
+    public <V> List<Long> arrayIndex(Object id, JsonPath<List<V>> path, V value) { return arrayIndex(id, path, value, 0, 0); }
+    public <V> List<Long> arrayIndex(Object id, JsonPath<List<V>> path, V value, long start, long stop) {
+        String json = encode(value, elementType(path)).toString();
+        return lengths(commands.execute("JSON.ARRINDEX", model.key(id), path.expression(), json, start, stop), path);
+    }
+    /** Object merge patch; null-valued members are removed. True means OK, including a JSONPath with no matches. */
+    public boolean merge(Object id, JsonPath<?> path, Map<String, ?> patch) {
+        checkWrite(path);
+        JsonNode object = mergeNode(Objects.requireNonNull(patch));
+        if (!object.isObject()) throw new IllegalArgumentException("Merge patch must serialize as a JSON object");
+        Object reply = commands.execute("JSON.MERGE", model.key(id), path.expression(), object.toString());
+        if (!"OK".equals(reply)) throw new JsonMutationDecodingException(model.key(id), "JSON.MERGE", new DataRetrievalFailureException("Expected OK"));
+        return true;
+    }
+    private JsonNode mergeNode(Map<?, ?> patch) {
+        var object = mapper.createObjectNode();
+        patch.forEach((key, value) -> {
+            if (!(key instanceof String name)) throw new IllegalArgumentException("Merge members require String names");
+            object.set(name, value instanceof Map<?, ?> nested ? mergeNode(nested) : encode(value, null));
+        });
+        return object;
+    }
+    private JavaType elementType(JsonPath<?> path) {
+        JavaType type = mapper.constructType(Objects.requireNonNull(path).type());
+        if (!List.class.isAssignableFrom(type.getRawClass()) || type.getContentType() == null)
+            throw new IllegalArgumentException("Array operations require JsonPath<List<V>>");
+        return type.getContentType();
+    }
+    private JsonNode encode(Object value, JavaType type) {
+        try {
+            JsonNode node = mapper.readTree(mapper.writeValueAsString(value));
+            if (type != null) mapper.readValue(node.toString(), type);
+            return node;
+        } catch (JsonProcessingException e) { throw new InvalidDataAccessApiUsageException("Cannot encode JSON operation value", e); }
+    }
+    private List<Long> mutationLengths(String command, String key, JsonPath<?> path, Object reply) {
+        try { return lengths(reply, path); }
+        catch (RuntimeException e) { throw new JsonMutationDecodingException(key, command, e); }
+    }
+    private List<Long> lengths(Object reply, JsonPath<?> path) {
+        var values = new ArrayList<Long>();
+        for (var value : matches(reply, path)) {
+            if (value == null) values.add(null);
+            else if (value instanceof Number number) values.add(number.longValue());
+            else throw new DataRetrievalFailureException("Expected RESP integer");
+        }
+        return immutable(values);
+    }
+    private List<?> matches(Object reply, JsonPath<?> path) {
+        return path.isJsonPath() ? DatadamCommands.array(reply) : Collections.singletonList(reply);
+    }
+    private static <V> List<V> immutable(List<V> values) { return Collections.unmodifiableList(values); }
     private <V> V convert(JsonNode node, JsonPath<V> path) throws JsonProcessingException {
         return mapper.readValue(node.toString(), mapper.constructType(path.type()));
     }
