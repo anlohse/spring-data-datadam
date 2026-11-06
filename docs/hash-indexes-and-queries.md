@@ -68,6 +68,8 @@ A faixa da @IdxQuery acima exclui maximum por usar `<`; os dois extremos de `Bet
 
 ## Derivação de nomes
 
+Na entrega 5.2, `StartingWith` acrescenta prefixos do campo inteiro por IDX sem separador, inclusive vírgulas literais. `Not`/`NotIn` numéricos usam FT com presença explícita e excluem ausentes/null/inválidos. Prefixos escalares em TAG FT HASH continuam recusados por causa da divisão padrão em tokens. A [matriz de derivação](derived-queries.md) documenta semântica, limitações e exemplos em `/customer-queries/hash`.
+
 As propriedades Java são resolvidas por Jackson para o campo HASH raiz; o planejador compara esse campo com os caminhos do schema e usa o alias nativo correspondente. Os operadores e retornos já suportados continuam disponíveis quando existe um plano semanticamente compatível: igualdade, faixas numéricas, count/exists, Optional/List/Page/Slice e Top/First no subconjunto documentado pela biblioteca.
 
 O HashCustomerRepository demonstra igualdade/lookup de email UNIQUE, igualdade de cidade com faixa/ordem de idade por IDX, count, exists, Slice/Top e consulta somente numérica por FT. A ordenação derivada usa a propriedade Java age e a converte para o alias FT years quando esse for o plano escolhido.
@@ -78,7 +80,7 @@ Logo, `findByCityAndAgeBetweenOrderByAgeDesc` no exemplo usa IDX e mantém igual
 
 ## Materialização, permissões e ciclo de vida
 
-IDX.QUERY/IDX.GET e FT.SEARCH devolvem todos os campos HASH por padrão. O template usa HashEntityCodec e executa AfterConvert da mesma forma que em findById. Listas, Maps, nomes Jackson e campos opcionais são reconstruídos pelo tipo declarado. A resposta é validada contra o prefixo do modelo. Essas APIs não solicitam projeções parciais nem preenchem entidades com campos omitidos por RETURN; projeções são a próxima etapa 5.1.
+IDX.QUERY/IDX.GET e FT.SEARCH devolvem todos os campos HASH por padrão. O template usa HashEntityCodec e executa AfterConvert da mesma forma que em findById. Listas, Maps, nomes Jackson e campos opcionais são reconstruídos pelo tipo declarado. A resposta é validada contra o prefixo do modelo. Essas APIs de entidade completa não preenchem entidades com campos omitidos por RETURN. O item 5.1 acrescenta [projeções nativas](projections.md) com DTOs/interfaces distintos e seleção explícita, sem callbacks de entidade.
 
 Não há HGETALL adicional por resultado. O teste de ACL usa um leitor com IDX/FT e acesso somente a chaves `visible*`, sem permissão de HGETALL: conteúdo e total refletem apenas as chaves legíveis. count/exists nativos não materializam entidades nem executam AfterConvert. A criação de índices continua exigindo as credenciais administrativas; a aplicação permanece sem DDL.
 

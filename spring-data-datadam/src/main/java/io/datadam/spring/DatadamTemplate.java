@@ -282,6 +282,45 @@ public class DatadamTemplate {
     public record SearchResults<T>(List<T> content, long total) {
         public SearchResults { content = List.copyOf(content); }
     }
+    public void validateProjection(String index,EntityModel<?> model,ProjectionSpec<?> projection,DatadamIndex.Kind kind){
+        new ProjectionPlan<>(mapper,model,model.index(index,kind),projection);
+    }
+    public <R> Page<R> projectQuery(String index,CompoundQuery query,Pageable pageable,EntityModel<?> model,ProjectionSpec<R> projection){
+        validateProjection(index,model,projection,DatadamIndex.Kind.COMPOUND);
+        if(pageable.getSort().isSorted())throw new IllegalArgumentException("IDX ordering follows index fields; use CompoundQuery.desc()");
+        long total=count(index,query,model);
+        return new PageImpl<>(projectQueryContent(index,query,pageable.isPaged()?pageable.getOffset():0,pageable.isPaged()?pageable.getPageSize():-1,model,projection),pageable,total);
+    }
+    public <R> List<R> projectQueryContent(String index,CompoundQuery query,long offset,int limit,EntityModel<?> model,ProjectionSpec<R> projection){
+        var plan=new ProjectionPlan<>(mapper,model,model.index(index,DatadamIndex.Kind.COMPOUND),projection);
+        if(offset<0||limit< -1)throw new IllegalArgumentException("Invalid IDX projection bounds");
+        var args=query.arguments(index);if(query.descending())args.add("DESC");
+        Collections.addAll(args,"LIMIT",offset,limit,plan.option(),plan.selectors().size());args.addAll(plan.selectors());
+        return projectedDocuments(commands.execute("IDX.QUERY",args.toArray()),0,plan);
+    }
+    public <R> Page<R> projectSearch(String index,SearchQuery query,Pageable pageable,EntityModel<?> model,ProjectionSpec<R> projection){
+        if(pageable.isUnpaged())throw new IllegalArgumentException("FT projections require a bounded page");
+        Sort sort=query.sort().isSorted()?query.sort():pageable.getSort();
+        if(query.sort().isSorted()&&pageable.getSort().isSorted()&&!query.sort().equals(pageable.getSort()))throw new IllegalArgumentException("Conflicting search sort orders");
+        var result=projectSearchResults(index,new SearchQuery(query.expression(),query.parameters(),sort),pageable.getOffset(),pageable.getPageSize(),model,projection);
+        return new PageImpl<>(result.content(),pageable,result.total());
+    }
+    public <R> SearchResults<R> projectSearchResults(String index,SearchQuery query,long offset,int limit,EntityModel<?> model,ProjectionSpec<R> projection){
+        var plan=new ProjectionPlan<>(mapper,model,model.index(index,DatadamIndex.Kind.SEARCH),projection);
+        if(offset<0||limit<0)throw new IllegalArgumentException("Invalid FT projection bounds");
+        var args=new ArrayList<Object>(List.of(index,query.expression()));
+        if(query.sort().isSorted()){var order=query.sort().iterator().next();Collections.addAll(args,"SORTBY",order.getProperty(),order.getDirection());}
+        Collections.addAll(args,"LIMIT",offset,limit,plan.option(),plan.selectors().size());args.addAll(plan.selectors());
+        if(!query.parameters().isEmpty()){Collections.addAll(args,"PARAMS",query.parameters().size()*2);query.parameters().forEach((name,value)->Collections.addAll(args,name,value));args.add("DIALECT");args.add(2);}
+        var response=DatadamCommands.array(commands.execute("FT.SEARCH",args.toArray()));
+        if(response.isEmpty()||!(response.get(0) instanceof Number total))throw new DataRetrievalFailureException("Missing FT projection total");
+        return new SearchResults<>(projectedDocuments(response,1,plan),total.longValue());
+    }
+    private <R> List<R> projectedDocuments(Object response,int offset,ProjectionPlan<R> plan){
+        var rows=DatadamCommands.array(response);if((rows.size()-offset)%2!=0)throw new DataRetrievalFailureException("Malformed projection reply");
+        var result=new ArrayList<R>();for(int i=offset;i<rows.size();i+=2)result.add(plan.read(rows.get(i).toString(),rows.get(i+1)));
+        return List.copyOf(result);
+    }
     /** Resolve Java property names through Jackson, including @JsonProperty and naming strategies. */
     public String indexPath(EntityModel<?> model, String property) {
         if (!model.isHash()) return jsonPath(model.type(), property);

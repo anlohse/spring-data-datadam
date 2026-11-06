@@ -6,6 +6,21 @@ import io.datadam.spring.repository.DatadamRepository;
 import org.springframework.data.domain.*;
 
 public interface HashCustomerRepository extends DatadamRepository<HashCustomer, String> {
+    Page<HashCustomer> findByEmailStartingWithOrderByEmailAsc(String prefix, Pageable pageable);
+    long countByEmailStartingWith(String prefix);
+    boolean existsByEmailStartingWith(String prefix);
+    Slice<HashCustomer> findByEmailStartingWith(String prefix, Pageable pageable);
+    List<HashCustomer> findTop2ByEmailStartingWithOrderByEmailAsc(String prefix);
+    Page<HashCustomer> findByAgeNot(int excludedAge, Pageable pageable);
+    Page<HashCustomer> findByAgeNotIn(Collection<Integer> excludedAges, Pageable pageable);
+    @IdxQuery(index="demo:hash:customers:city-age",value="city = ?0",descending=true)
+    Page<CustomerSummary> summariesByCity(String city,Pageable pageable);
+    @FtQuery(index="demo:hash:customers:search",value="@home:{?0}")
+    Page<CustomerView> viewsByCity(String city,Pageable pageable);
+    @IdxQuery(index="demo:hash:customers:city-age",value="city = ?0",descending=true)
+    List<CustomerSummary> summaryListByCity(String city,Pageable pageable);
+    @FtQuery(index="demo:hash:customers:search",value="@home:{?0}")
+    List<CustomerView> viewListByCity(String city,Pageable pageable);
     Optional<HashCustomer> findByEmail(String email);
     boolean existsByEmail(String email);
     long countByCityAndAgeLessThan(String city, int maximum);

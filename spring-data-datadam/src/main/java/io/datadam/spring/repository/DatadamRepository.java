@@ -13,4 +13,6 @@ public interface DatadamRepository<T, ID> extends ListCrudRepository<T, ID> {
     long count(String index, CompoundQuery query);
     List<T> lookup(String index, Object... values);
     Page<T> search(String index, SearchQuery query, Pageable pageable);
+    <R> Page<R> projectQuery(String index,CompoundQuery query,Pageable pageable,ProjectionSpec<R> projection);
+    <R> Page<R> projectSearch(String index,SearchQuery query,Pageable pageable,ProjectionSpec<R> projection);
 }

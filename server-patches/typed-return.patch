@@ -1,0 +1,197 @@
+diff --git a/docs/search.md b/docs/search.md
+index b60f2a8..d3f1174 100644
+--- a/docs/search.md
++++ b/docs/search.md
+@@ -182,6 +182,8 @@ JSON, a name is an index field (its path is used), a path (`$.name`, `.name`), o
+ top-level member. A JSON string is returned as it is, any other value as JSON text, and only the first value a
+ path selects. Names a document does not have are left out of its entry.
+ 
++**RETURNJSON (Datadam extension).** The syntax and argument count, including AS aliases, follow RETURN. For JSON documents each selected value is JSON text: strings retain quotes, null remains `null`, and arrays/objects keep their structure. Only the first path match is returned; missing paths are omitted. HASH fields retain RETURN's native string format. RETURN and default content are unchanged; do not combine RETURNJSON and RETURN.
++
+ **Reply** (the RESP2 shape, also on RESP3 connections):
+ 
+ ```text
+diff --git a/docs/secondary-indexes.md b/docs/secondary-indexes.md
+index eb4bf96..7d83fc5 100644
+--- a/docs/secondary-indexes.md
++++ b/docs/secondary-indexes.md
+@@ -170,9 +170,12 @@ and options may be interleaved; options are case-insensitive.
+ | `LIMIT offset count` | Skip `offset` matches, return up to `count`. Default `LIMIT 0 10`. A negative `count` means no limit; `count` 0 returns an empty page (use `IDX.COUNT` to count). |
+ | `NOCONTENT` | Return keys only. |
+ | `RETURN count name ...` | Return only these fields. Names follow the same rules as condition fields. |
++| `RETURNJSON count name ...` | Datadam extension: select fields like RETURN, but encode each selected JSON value as JSON text, including quoted strings and null. HASH fields keep RETURN's native string format. |
+ 
+ `NOCONTENT` and `RETURN` together fail with `ERR NOCONTENT and RETURN cannot be used together`.
+ 
++`RETURNJSON` uses the first value selected by a JSON path, preserving its type and array/object structure. Missing paths are omitted; JSON null is returned as `null` and the string `null` as `"null"`. It does not change RETURN or default content. Do not combine RETURN and RETURNJSON; the option requires a positive field count. Returned HASH values remain native field strings.
++
+ **Replies**
+ 
+ | Form | Reply |
+diff --git a/src/db/index_ops.cpp b/src/db/index_ops.cpp
+index 37243b7..53a2f1a 100644
+--- a/src/db/index_ops.cpp
++++ b/src/db/index_ops.cpp
+@@ -306,7 +306,17 @@ namespace {
+ // The values a query sees in a document: an index field's by its name, or
+ // what a path finds ($.a.b, .a.b, or a top-level member by its name), a
+ // string as it is and anything else as JSON text.
+-std::vector<std::string> json_query_values(const IndexDef& def, const Json& doc, std::string_view name) {
++std::vector<std::string> json_query_values(const IndexDef& def, const Json& doc, std::string_view name, bool typed = false) {
++  if (typed) {
++    int fi = def.field_index(name);
++    std::string text = fi >= 0 ? def.fields[static_cast<size_t>(fi)].path
++        : name.starts_with("$") || name.starts_with(".") ? std::string(name) : "$." + std::string(name);
++    std::string error;
++    auto path = JsonPath::parse(text, &error);
++    if (!path) return {};
++    auto found = path->select(doc);
++    return found.empty() ? std::vector<std::string>{} : std::vector<std::string>{dump_json(*found.front())};
++  }
+   if (int i = def.field_index(name); i >= 0) return def.json_values(static_cast<size_t>(i), doc);
+   std::vector<std::string> out;
+   std::string text = name.starts_with("$") || name.starts_with(".") ? std::string(name) : "$." + std::string(name);
+@@ -484,7 +494,7 @@ IndexQueryResult Database::query_index(const IndexQuery& q) {
+           hit.fields.emplace_back("$", dump_json(*doc));
+         } else if (!q.no_content && !q.count_only) {
+           for (const auto& f : q.return_fields) {
+-            auto vs = json_query_values(def, *doc, f);
++            auto vs = json_query_values(def, *doc, f, q.return_json);
+             if (!vs.empty()) hit.fields.emplace_back(f, vs.front());
+           }
+         }
+diff --git a/src/db/search_ops.cpp b/src/db/search_ops.cpp
+index 1a85b95..855926c 100644
+--- a/src/db/search_ops.cpp
++++ b/src/db/search_ops.cpp
+@@ -143,7 +143,7 @@ class SearchScanner {
+ 
+ // What RETURN shows for a name in a document: an index field's path, or the
+ // name as a path; a string as it is, anything else as JSON text.
+-std::optional<std::string> json_return_value(const IndexDef& def, const Json& doc, const std::string& name) {
++std::optional<std::string> json_return_value(const IndexDef& def, const Json& doc, const std::string& name, bool typed) {
+   int fi = def.field_index(name);
+   std::string text = fi >= 0 ? def.fields[static_cast<size_t>(fi)].path
+                      : name.starts_with("$") || name.starts_with(".") ? name
+@@ -153,7 +153,7 @@ std::optional<std::string> json_return_value(const IndexDef& def, const Json& do
+   if (!path) return std::nullopt;
+   auto found = path->select(doc);
+   if (found.empty()) return std::nullopt;
+-  return found.front()->is_string() ? found.front()->get<std::string>() : dump_json(*found.front());
++  return !typed && found.front()->is_string() ? found.front()->get<std::string>() : dump_json(*found.front());
+ }
+ 
+ }  // namespace
+@@ -223,7 +223,7 @@ SearchResult Database::search(const IndexRegistry::Ptr& index, const SearchNode&
+         hit.fields.emplace_back("$", dump_json(*doc));
+       } else {
+         for (const auto& [name, as] : opts.return_fields) {
+-          if (auto v = json_return_value(def, *doc, name)) hit.fields.emplace_back(as, std::move(*v));
++          if (auto v = json_return_value(def, *doc, name, opts.return_json)) hit.fields.emplace_back(as, std::move(*v));
+         }
+       }
+     } else {
+diff --git a/src/index/index_query.h b/src/index/index_query.h
+index 6a93764..2b47b23 100644
+--- a/src/index/index_query.h
++++ b/src/index/index_query.h
+@@ -27,6 +27,7 @@ struct IndexQuery {
+   bool desc = false;
+   bool count_only = false;
+   bool no_content = false;
++  bool return_json = false;  // RETURNJSON preserves JSON value types, including null and strings.
+   std::vector<std::string> return_fields;  // empty: all fields
+   // If set, only hashes whose key passes it count (ACL key permissions).
+   std::function<bool(std::string_view key)> key_filter;
+diff --git a/src/index/search_query.h b/src/index/search_query.h
+index ee9981f..0cd2bf8 100644
+--- a/src/index/search_query.h
++++ b/src/index/search_query.h
+@@ -49,6 +49,7 @@ struct SearchOptions {
+   int64_t offset = 0;
+   int64_t limit = 10;
+   bool no_content = false;
++  bool return_json = false;
+   // RETURN: a field name (or JSON path) and the name to show it under.
+   std::vector<std::pair<std::string, std::string>> return_fields;
+   std::optional<size_t> sort_field;  // SORTBY: a field of the index
+diff --git a/src/server/cmd_index.cpp b/src/server/cmd_index.cpp
+index f087521..88325c0 100644
+--- a/src/server/cmd_index.cpp
++++ b/src/server/cmd_index.cpp
+@@ -188,7 +188,11 @@ bool parse_query(Cmd& c, IndexQuery* q, bool allow_options) {
+       q->offset = *off;
+       q->limit = *cnt;
+       i += 3;
+-    } else if (allow_options && opt == "return" && i + 1 < c.args.size()) {
++    } else if (allow_options && (opt == "return" || opt == "returnjson") && i + 1 < c.args.size()) {
++      if ((opt == "returnjson" && !q->return_fields.empty()) || (opt == "return" && q->return_json)) {
++        c.r.error("ERR RETURN and RETURNJSON cannot be combined"); return false;
++      }
++      q->return_json = opt == "returnjson";
+       auto n = parse_int64(c.args[i + 1]);
+       if (!n || *n <= 0 || i + 2 + static_cast<size_t>(*n) > c.args.size()) {
+         c.r.error("ERR bad RETURN count");
+diff --git a/src/server/cmd_search.cpp b/src/server/cmd_search.cpp
+index 9cce9e6..e2eb102 100644
+--- a/src/server/cmd_search.cpp
++++ b/src/server/cmd_search.cpp
+@@ -171,7 +171,10 @@ void cmd_ft_search(Cmd& c) {
+       opts.offset = *off;
+       opts.limit = *cnt;
+       i += 3;
+-    } else if (opt == "return") {
++    } else if (opt == "return" || opt == "returnjson") {
++      if ((opt == "returnjson" && !opts.return_fields.empty()) || (opt == "return" && opts.return_json))
++        return c.r.error("ERR RETURN and RETURNJSON cannot be combined");
++      opts.return_json = opt == "returnjson";
+       auto count = count_at(i + 1);
+       if (!count) return c.r.error("ERR bad RETURN count");
+       size_t end = i + 2 + *count;
+diff --git a/tests/json_test.cpp b/tests/json_test.cpp
+index a5076da..e63e0ee 100644
+--- a/tests/json_test.cpp
++++ b/tests/json_test.cpp
+@@ -446,3 +446,20 @@ TEST_F(JsonIndexes, Unique) {
+   EXPECT_EQ(text({"RENAME", "acct:2", "acct:3"}), "OK");  // its own value moves with it
+   EXPECT_EQ(run({"IDX.GET", "emails", "a@x"}).items[0].text, "acct:3");
+ }
++
++TEST_F(JsonIndexes, TypedReturnPreservesNullStringsArraysAndAbsence) {
++  ASSERT_EQ(text({"JSON.SET", "p:1", "$", R"({"age":20,"name":"null","optional":null,"tags":["a","b"]})"}), "OK");
++  ASSERT_EQ(text({"IDX.CREATE", "p", "ON", "JSON", "PREFIX", "1", "p:", "SCHEMA", "$.age", "AS", "age", "NUMERIC"}), "OK");
++  ready("p");
++  auto result = run({"IDX.QUERY", "p", "RETURNJSON", "5", "$.name", "$.optional", "$.tags", "$.missing", "age"});
++  ASSERT_EQ(result.items.size(), 2);
++  const auto& fields = result.items[1].items;
++  ASSERT_EQ(fields.size(), 8);
++  EXPECT_EQ(fields[1].text, "\"null\"");
++  EXPECT_EQ(fields[3].text, "null");
++  EXPECT_EQ(fields[5].text, "[\"a\",\"b\"]");
++  EXPECT_EQ(fields[7].text, "20");
++  auto old = run({"IDX.QUERY", "p", "RETURN", "1", "$.name"});
++  EXPECT_EQ(old.items[1].items[1].text, "null");
++  EXPECT_TRUE(run({"IDX.QUERY", "p", "RETURN", "1", "age", "RETURNJSON", "1", "age"}).error);
++}
+diff --git a/tests/search_test.cpp b/tests/search_test.cpp
+index 9baca2b..7952232 100644
+--- a/tests/search_test.cpp
++++ b/tests/search_test.cpp
+@@ -381,3 +381,17 @@ TEST_F(Search, CompoundIndexesWithSeveralValues) {
+   text({"JSON.ARRAPPEND", "post:2", "$.tags", R"("cpp")"});
+   EXPECT_EQ(text({"IDX.COUNT", "posts", "tag", "=", "cpp"}), "2");
+ }
++
++TEST_F(Search, TypedJsonReturnSupportsAliasesWithoutChangingReturn) {
++  ASSERT_EQ(text({"JSON.SET", "p:1", "$", R"({"age":20,"name":"null","optional":null,"tags":["a","b"]})"}), "OK");
++  ASSERT_EQ(text({"FT.CREATE", "p", "ON", "JSON", "PREFIX", "1", "p:", "SCHEMA", "$.age", "AS", "age", "NUMERIC"}), "OK");
++  ready("p");
++  auto result = run({"FT.SEARCH", "p", "*", "RETURNJSON", "7", "$.name", "AS", "display", "$.optional", "$.tags", "$.missing", "age"});
++  ASSERT_EQ(result.items.size(), 3);
++  const auto& fields = result.items[2].items;
++  ASSERT_EQ(fields.size(), 8);
++  EXPECT_EQ(fields[0].text, "display"); EXPECT_EQ(fields[1].text, "\"null\"");
++  EXPECT_EQ(fields[3].text, "null"); EXPECT_EQ(fields[5].text, "[\"a\",\"b\"]"); EXPECT_EQ(fields[7].text, "20");
++  EXPECT_EQ(run({"FT.SEARCH", "p", "*", "RETURN", "1", "$.name"}).items[2].items[1].text, "null");
++  EXPECT_TRUE(run({"FT.SEARCH", "p", "*", "RETURNJSON", "1", "age", "RETURN", "1", "age"}).error);
++}

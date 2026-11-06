@@ -2,9 +2,9 @@
 
 Este documento acompanha a evolução da biblioteca, da base funcional atual até uma versão adequada para adoção em outros projetos. A ordem busca entregar utilidade em cada etapa, sem depender de uma reescrita futura.
 
-**Estado atual:** CRUD e consultas nativas IDX/FT em JSON e HASH, com TTL, IDs, auditoria, callbacks e controle de versão, mais operações JSON com incrementos, arrays e merge. São 234 testes Java aprovados na última execução confirmada: 108 unitários e 126 de integração com Datadam real no Docker. A evolução do servidor para HASH passou também por 184 testes nativos e pela integração/persistência C++.
+**Estado atual:** CRUD, consultas e projeções nativas IDX/FT em JSON e HASH, com TTL, IDs, auditoria, callbacks e controle de versão, mais operações JSON com incrementos, arrays e merge. A derivação inclui prefixos String e negação numérica com presença explícita. São 283 testes Java aprovados na última execução confirmada: 132 unitários e 151 de integração com Datadam real no Docker. O servidor com HREPLACE/RETURNJSON passou também por 186 testes nativos e pela integração/persistência C++ na entrega anterior; 5.2 não acrescentou mudanças no C++.
 
-**Próxima entrega:** **5.1 — Projeções**. A implementação desse recurso ainda não começou.
+**Próxima entrega:** **6.1 — Inspeção e diagnóstico**. A implementação desse recurso ainda não começou.
 
 ## Como vamos trabalhar
 
@@ -191,20 +191,30 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 ## 5. Consultas mais completas
 
-### 5.1. Projeções
+### 5.1. Projeções — concluído
 
-- [ ] Implementar seleção de campos usando os retornos nativos de IDX/FT.
-- [ ] Mapear o resultado para DTOs e/ou interfaces de projeção, definindo explicitamente o primeiro conjunto suportado.
-- [ ] Preservar aliases, conversões, campos ausentes, ordem e paginação sem consultas extras por documento.
-- [ ] Testar HASH e JSON sem apresentar uma entidade incompleta como se estivesse totalmente carregada.
+- [x] Implementar seleção de campos usando os retornos nativos de IDX/FT.
+- [x] Mapear o resultado para DTOs e/ou interfaces de projeção, definindo explicitamente o primeiro conjunto suportado.
+- [x] Preservar aliases, conversões, campos ausentes, ordem e paginação sem consultas extras por documento.
+- [x] Testar HASH e JSON sem apresentar uma entidade incompleta como se estivesse totalmente carregada.
+
+**Entrega em 06/11/2026:** ProjectionSpec, ProjectionProperty e seleção nativa em projectQuery/projectSearch; consultas @IdxQuery/@FtQuery também inferem records e interfaces fechadas pelos retornos List/Page. Tipos projetados são distintos das entidades, com propriedades raiz anuláveis, nomes Jackson/aliases e conversões tipadas. Inclui `/customer-projections` para JSON/HASH por IDX/FT. Consulte [projeções](docs/projections.md).
+
+**Validação:** 12 novos testes unitários e 16 novos testes de integração; 262 testes Java aprovados. Cobertura de campos solicitados apenas, records/interfaces, bindings, null versus string literal null, campos ausentes, conversões/containers, BigDecimal/int64, ordenação, List/Page/total, queries declaradas/programáticas, ACL sem JSON.GET/HGETALL, expiração, callbacks não executados e conteúdo/TTL inalterados, além de HTTP. O servidor passou por 186 testes nativos e pela integração/persistência, incluindo compatibilidade do RETURN existente e tipos/aliases em RETURNJSON.
+
+**Dependência de servidor:** projeções JSON usam RETURNJSON, opção aditiva implementada no Datadam C++ para preservar aspas de strings, nulls e estruturas sem uma leitura extra por documento. O RETURN anterior fica inalterado; HASH usa RETURN existente. O patch reproduzível está em server-patches/typed-return.patch e a imagem local está atualizada. Não há fallback para carregar a entidade inteira em servidores antigos.
+
+**Decisões de contrato:** suporte inicial a records e interfaces fechadas com getters, propriedades raiz com tipos anuláveis e retornos List/Page em consultas anotadas ou programáticas. Recusados alvos de entidade, primitivos/Object/Optional na raiz, SpEL/default methods/setters, fontes aninhadas, tipos incompatíveis e projeções dinâmicas/derivadas. Projeções não executam callbacks de entidade nem preenchem auditoria/versão; ausência e null viram null no DTO/getter, sem defaults ou descarte da linha. Campos de tipos complexos são selecionados inteiros. Mantidos os limites nativos de paginação/contagem e a separação entre projeção e entidade completa.
 
 ### 5.2. Ampliação da derivação
 
-- [ ] Elaborar uma matriz dos operadores Spring Data e da sua viabilidade em IDX/FT.
-- [ ] Implementar os operadores adicionais viáveis, em entregas separadas, começando por prefixos TAG (`StartingWith`).
-- [ ] Avaliar `Not`/`NotIn` com regras explícitas para documentos sem o campo, antes de implementá-los.
-- [ ] Manter erros claros para operadores sem equivalente correto; não simular suporte filtrando páginas em memória.
-- [ ] Ampliar testes de combinações, aliases, campos ausentes e ordenação.
+- [x] Elaborar uma matriz dos operadores Spring Data e da sua viabilidade em IDX/FT.
+- [x] Implementar os operadores adicionais viáveis, em entregas separadas, começando por prefixos TAG (`StartingWith`).
+- [x] Avaliar `Not`/`NotIn` com regras explícitas para documentos sem o campo, antes de implementá-los.
+- [x] Manter erros claros para operadores sem equivalente correto; não simular suporte filtrando páginas em memória.
+- [x] Ampliar testes de combinações, aliases, campos ausentes e ordenação.
+
+**Entregue em 2026-11-06:** prefixos String literais por faixa TAG IDX ou parâmetro FT, com IgnoreCase ASCII em schema compatível; `Not`/`NotIn` numéricos por FT com guarda de presença. Ausência/null/valor inválido não passam na negação. Negação TAG e operadores sem equivalente correto continuam recusados. Matriz, decisões, limites e exemplos em [docs/derived-queries.md](docs/derived-queries.md). São 12 novos testes unitários e 9 novos testes de integração, com paginação/totais, Unicode, parâmetros literais, combinações, aliases, JSON/HASH, TTL e HTTP. Suíte completa aprovada: 283 testes.
 
 **Concluído quando:** os recursos novos tiverem semântica documentada, execução nativa e testes que comprovem filtros, conteúdo e totais.
 
@@ -306,6 +316,8 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 | 1.1 — TTL de entidades | Concluída | 52 testes aprovados no total; padrão/override, Duration, persist, UNIQUE, ACL, índices e HTTP; limite de durabilidade em crash documentado |
 | 1.2 — Geração de IDs e identificação de entidades novas | Concluída | 81 testes aprovados no total; geração opcional, estado novo, classes/records, colisões, TTL, falhas e HTTP |
 | 1.3 — Auditoria e callbacks | Concluída | 108 testes aprovados no total; auditoria opcional, ordem e proteção dos callbacks, records/classes, relógio e HTTP |
-| 2.1 — Optimistic locking com @Version | Próxima | API e implementação ainda pendentes |
+| 2.1 — Optimistic locking com @Version | Concluída | CAS nativo, concorrência, exclusão versionada e integração JSON/HASH |
+| 5.1 — Projeções | Concluída | Records/interfaces, seleção nativa IDX/FT e JSON/HASH; 262 testes Java na entrega |
+| 5.2 — Ampliação da derivação | Concluída | Prefixos String e negação numérica com presença; matriz e exemplos; 283 testes Java aprovados (132 unitários e 151 de integração) |
 
 Ao terminar cada entrega, acrescentaremos aqui o resultado, os testes executados e eventuais decisões que alterem os próximos passos.
