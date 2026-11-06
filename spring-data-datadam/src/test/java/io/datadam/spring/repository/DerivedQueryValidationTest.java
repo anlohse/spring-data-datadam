@@ -56,6 +56,19 @@ class DerivedQueryValidationTest {
         assertThatIllegalArgumentException().isThrownBy(() -> factory(PartialRepository.class).method("countByCityAndAge"))
             .withMessageContaining("long/Long");
     }
+    @Test void hashRootPropertiesResolveJacksonNamesForNativeIndexes() {
+        assertThatNoException().isThrownBy(()->factory(HashRenamedRepository.class).method("findByCity"));
+    }
+    @Test void splitHashTagsCannotPretendToBeWholeFieldEquality() {
+        assertThatIllegalArgumentException().isThrownBy(()->factory(HashSplitRepository.class).method("findByCity"))
+            .withMessageContaining("No compatible native index");
+        assertThatIllegalArgumentException().isThrownBy(()->factory(HashSplitRepository.class).method("findByCityIgnoreCase"))
+            .withMessageContaining("No compatible native index");
+    }
+    @Test void hashNestedJsonInsideAFieldIsNotAQueryableHashProperty() {
+        assertThatIllegalArgumentException().isThrownBy(()->factory(HashNestedRepository.class).method("findByAddressCity"))
+            .withMessageContaining("root fields");
+    }
     @DatadamDocument(prefix = "partial:")
     @DatadamIndex(name = "city-age", fields = {@IndexField(path = "$.city", alias = "city"), @IndexField(path = "$.age", alias = "age", type = IndexField.Type.NUMERIC)})
     record Partial(@Id String id, String city, int age) {}
@@ -81,4 +94,17 @@ class DerivedQueryValidationTest {
     @DatadamIndex(name = "renamed", fields = @IndexField(path = "$.homeCity", alias = "h"))
     record Renamed(@Id String id, @JsonProperty("homeCity") String city) {}
     interface RenamedRepository extends DatadamRepository<Renamed, String> { List<Renamed> findByCity(String city); }
+    @DatadamDocument(prefix="hash:",storage=DatadamStorage.HASH)
+    @DatadamIndex(name="renamed",fields=@IndexField(path="home_city",alias="home_city"))
+    record HashRenamed(@Id String id,@JsonProperty("home_city") String city){}
+    interface HashRenamedRepository extends DatadamRepository<HashRenamed,String>{List<HashRenamed> findByCity(String city);}
+    @DatadamDocument(prefix="hash:",storage=DatadamStorage.HASH)
+    @DatadamIndex(name="split",kind=DatadamIndex.Kind.SEARCH,fields=@IndexField(path="city",alias="city",caseSensitive=true))
+    record HashSplit(@Id String id,String city){}
+    interface HashSplitRepository extends DatadamRepository<HashSplit,String>{List<HashSplit> findByCity(String city);List<HashSplit> findByCityIgnoreCase(String city);}
+    record Address(String city){}
+    @DatadamDocument(prefix="hash:",storage=DatadamStorage.HASH)
+    @DatadamIndex(name="nested",fields=@IndexField(path="address.city",alias="address.city"))
+    record HashNested(@Id String id,Address address){}
+    interface HashNestedRepository extends DatadamRepository<HashNested,String>{List<HashNested> findByAddressCity(String city);}
 }

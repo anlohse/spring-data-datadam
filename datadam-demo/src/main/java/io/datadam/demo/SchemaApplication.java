@@ -22,7 +22,8 @@ public final class SchemaApplication {
             new DatadamIndexOperations(new DatadamCommands(pool)).ensureIndexes(TemporaryNote.class, Duration.ofSeconds(30));
             new DatadamIndexOperations(new DatadamCommands(pool)).ensureIndexes(AuditedNote.class, Duration.ofSeconds(30));
             new DatadamIndexOperations(new DatadamCommands(pool)).ensureIndexes(VersionedNote.class, Duration.ofSeconds(30));
-            System.out.println("Datadam schema ready: customer, temporary-note, audited-note and versioned-note indexes");
+            new DatadamIndexOperations(new DatadamCommands(pool)).ensureIndexes(HashCustomer.class, Duration.ofSeconds(30));
+            System.out.println("Datadam schema ready: JSON entities and HASH customer indexes");
         }
     }
 }

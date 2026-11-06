@@ -1,0 +1,155 @@
+diff --git a/docs/commands.md b/docs/commands.md
+index d2e8812..5997c9b 100644
+--- a/docs/commands.md
++++ b/docs/commands.md
+@@ -209,6 +209,7 @@ The family differs from Redis in several ways:
+ | Command | Syntax | Notes |
+ |---|---|---|
+ | HSET | `HSET key field value [field value ...]` | Number of new fields. |
++| HREPLACE | `HREPLACE key field value [field value ...]` | Datadam extension: atomically replaces the whole HASH field set, retaining TTL. OK; duplicate fields use the last value. WRONGTYPE never replaces another type. UNIQUE validates the final state. |
+ | HMSET | `HMSET key field value [field value ...]` | Replies `OK`. |
+ | HSETNX | `HSETNX key field value` | |
+ | HGET | `HGET key field` | |
+diff --git a/src/db/database.cpp b/src/db/database.cpp
+index 1fa0cb7..236467d 100644
+--- a/src/db/database.cpp
++++ b/src/db/database.cpp
+@@ -432,7 +432,9 @@ void Database::stage_data(PendingBatch& b, std::string key, std::optional<std::s
+   b.bytes += key.size() + (value ? value->size() : 0);
+   auto it = b.data.find(key);
+   if (b.in_txn) {
+-    b.undo.push_back({false, key, it == b.data.end() ? std::nullopt : std::optional(it->second)});
++    std::optional<std::optional<std::string>> before;
++    if (it != b.data.end()) before.emplace(it->second);
++    b.undo.push_back({false, key, std::move(before)});
+   }
+   if (it == b.data.end()) b.data.emplace(std::move(key), std::move(value));
+   else it->second = std::move(value);
+@@ -443,7 +445,9 @@ void Database::stage_index(PendingBatch& b, std::string key, std::optional<std::
+   b.bytes += key.size() + (value ? value->size() : 0);
+   auto it = b.index.find(key);
+   if (b.in_txn) {
+-    b.undo.push_back({true, key, it == b.index.end() ? std::nullopt : std::optional(it->second)});
++    std::optional<std::optional<std::string>> before;
++    if (it != b.index.end()) before.emplace(it->second);
++    b.undo.push_back({true, key, std::move(before)});
+   }
+   if (it == b.index.end()) b.index.emplace(std::move(key), std::move(value));
+   else it->second = std::move(value);
+diff --git a/src/server/cmd_hash.cpp b/src/server/cmd_hash.cpp
+index 992a55e..4dbfcaa 100644
+--- a/src/server/cmd_hash.cpp
++++ b/src/server/cmd_hash.cpp
+@@ -5,6 +5,7 @@
+ #include <format>
+ #include <optional>
+ #include <random>
++#include <unordered_set>
+ 
+ #include "server/command.h"
+ #include "util/strings.h"
+@@ -60,6 +61,26 @@ void hset_generic(Cmd& c, bool hmset) {
+ void cmd_hset(Cmd& c) { hset_generic(c, false); }
+ void cmd_hmset(Cmd& c) { hset_generic(c, true); }
+ 
++// Datadam extension: replace the complete hash in one KeyTxn, retaining expiration.
++// UNIQUE validation sees the final field set, never a HDEL/HSET intermediate state.
++void cmd_hreplace(Cmd& c) {
++  if (c.args.size() % 2 != 0) return c.r.error("ERR wrong number of arguments for 'hreplace' command");
++  if (!with_collection(c, c.args[1], kHash, [&](Txn& t) {
++        auto old = all_fields(t);
++        std::unordered_set<std::string_view> incoming;
++        for (size_t i = 2; i < c.args.size(); i += 2) incoming.insert(c.args[i]);
++        t.create(kHash);
++        for (const auto& [field, value] : old) {
++          if (!incoming.contains(field)) { t.del(field); --t.meta().size; }
++        }
++        for (size_t i = 2; i < c.args.size(); i += 2) {
++          if (!t.get(c.args[i])) ++t.meta().size;
++          t.put(c.args[i], c.args[i + 1]);
++        }
++      })) return;
++  c.r.ok();
++}
++
+ void cmd_hsetnx(Cmd& c) {
+   bool added = false;
+   if (!with_collection(c, c.args[1], kHash, [&](Txn& t) {
+@@ -274,6 +295,7 @@ void cmd_hrandfield(Cmd& c) {
+ CommandList hash_commands() {
+   return {
+       {"hset", {cmd_hset, -4}},
++      {"hreplace", {cmd_hreplace, -4}},
+       {"hmset", {cmd_hmset, -4}},
+       {"hsetnx", {cmd_hsetnx, 4}},
+       {"hget", {cmd_hget, 3}},
+diff --git a/src/server/command_meta.cpp b/src/server/command_meta.cpp
+index 224df35..3a5c961 100644
+--- a/src/server/command_meta.cpp
++++ b/src/server/command_meta.cpp
+@@ -138,6 +138,7 @@ const Entry kEntries[] = {
+     {"renamenx", {KS | W | FAST, {kReadWrite1to2, kNone}}},
+     // hash
+     {"hset", {W | HASH | FAST, {kWrite1, kNone}}},
++    {"hreplace", {W | HASH | SLOW, {kWrite1, kNone}}},
+     {"hmset", {W | HASH | FAST, {kWrite1, kNone}}},
+     {"hsetnx", {W | HASH | FAST, {kWrite1, kNone}}},
+     {"hdel", {W | HASH | FAST, {kWrite1, kNone}}},
+diff --git a/tests/collections_test.cpp b/tests/collections_test.cpp
+index 19f33cb..78ca21c 100644
+--- a/tests/collections_test.cpp
++++ b/tests/collections_test.cpp
+@@ -109,6 +109,25 @@ TEST_F(CollectionsTest, AllTypesPersistAcrossRestart) {
+   EXPECT_EQ(run({"GET", "h"}).substr(0, 10), "-WRONGTYPE");
+ }
+ 
++TEST_F(CollectionsTest, HashReplaceRetainsExpiryAndReplacesWholeFieldSet) {
++  EXPECT_EQ(run({"HSET", "h", "old", "gone", "keep", "before"}), integer(2));
++  EXPECT_EQ(run({"PEXPIRE", "h", "60000"}), integer(1));
++  auto expiry = run({"PEXPIRETIME", "h"});
++  EXPECT_EQ(run({"HREPLACE", "h", "keep", "after", "new", "value", "new", "last"}), "+OK\r\n");
++  EXPECT_EQ(run({"HGET", "h", "old"}), "$-1\r\n");
++  EXPECT_EQ(run({"HGET", "h", "new"}), bulk("last"));
++  EXPECT_EQ(run({"HLEN", "h"}), integer(2));
++  EXPECT_EQ(run({"PEXPIRETIME", "h"}), expiry);
++  close(); open();
++  EXPECT_EQ(run({"HGET", "h", "keep"}), bulk("after"));
++  EXPECT_EQ(run({"HLEN", "h"}), integer(2));
++  EXPECT_EQ(run({"PEXPIRETIME", "h"}), expiry);
++  EXPECT_EQ(run({"SET", "string", "safe"}), "+OK\r\n");
++  EXPECT_TRUE(run({"HREPLACE", "string", "f", "v"}).starts_with("-WRONGTYPE"));
++  EXPECT_EQ(run({"GET", "string"}), bulk("safe"));
++  EXPECT_TRUE(run({"HREPLACE", "h", "unpaired"}).starts_with("-ERR"));
++}
++
+ TEST_F(CollectionsTest, DelDropsElementsAndNewVersionStartsEmpty) {
+   for (int i = 0; i < 100; ++i) run({"HSET", "h", "f" + std::to_string(i), "v"});
+   EXPECT_EQ(run({"HLEN", "h"}), integer(100));
+diff --git a/tests/index_test.cpp b/tests/index_test.cpp
+index 68182c8..351960b 100644
+--- a/tests/index_test.cpp
++++ b/tests/index_test.cpp
+@@ -203,6 +203,23 @@ TEST_F(IndexTest, UniqueBackfillFailsOnDuplicates) {
+   EXPECT_EQ(index_entries(), 0u);
+ }
+ 
++TEST_F(IndexTest, HashReplaceUniqueRefusalPreservesFieldsAndExpiryInsideScripts) {
++  EXPECT_EQ(run({"IDX.CREATE", "u", "ON", "HASH", "PREFIX", "1", "h:", "SCHEMA", "ref", "TAG", "UNIQUE"}), "+OK\r\n");
++  ASSERT_EQ(wait_built("u"), IndexState::Ready);
++  EXPECT_EQ(run({"HREPLACE", "h:a", "id", "a", "ref", "owner", "text", "safe"}), "+OK\r\n");
++  EXPECT_EQ(run({"HREPLACE", "h:b", "id", "b", "ref", "other", "text", "preserve", "remove", "old"}), "+OK\r\n");
++  EXPECT_EQ(run({"PEXPIRE", "h:b", "60000"}), ":1\r\n");
++  auto before = run({"HGETALL", "h:b"});
++  auto expiry = run({"PEXPIRETIME", "h:b"});
++  auto error = run({"EVAL", "return redis.call('HREPLACE', KEYS[1], 'id', 'b', 'ref', 'owner', 'text', 'refused')", "1", "h:b"});
++  EXPECT_NE(error.find("UNIQUE"), std::string::npos);
++  EXPECT_EQ(run({"HGETALL", "h:b"}), before);
++  EXPECT_EQ(run({"PEXPIRETIME", "h:b"}), expiry);
++  close(); open();
++  EXPECT_EQ(run({"HGETALL", "h:b"}), before);
++  EXPECT_EQ(run({"PEXPIRETIME", "h:b"}), expiry);
++}
++
+ TEST_F(IndexTest, DropRemovesEntries) {
+   users_index();
+   for (int i = 0; i < 20; ++i) run({"HSET", "user:" + std::to_string(i), "city", "SP", "age", "1"});

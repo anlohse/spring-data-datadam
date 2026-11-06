@@ -20,13 +20,14 @@ public class SimpleDatadamRepository<T, ID> implements DatadamRepository<T, ID> 
     public long count() { return template.keys(model).size(); }
     public void deleteById(ID id) {
         if (model.isVersioned()) findById(id).ifPresent(this::delete);
-        else template.commands().execute("DEL", model.key(id));
+        else template.deleteById(id, model);
     }
     public void delete(T entity) { template.delete(entity, model); }
     public void deleteAllById(Iterable<? extends ID> ids) { ids.forEach(this::deleteById); }
     public void deleteAll(Iterable<? extends T> entities) { entities.forEach(this::delete); }
     public void deleteAll() {
         if (model.isVersioned()) findAll().forEach(this::delete);
+        else if (model.isHash()) template.keys(model).forEach(key -> template.deleteById(key.substring(model.prefix().length()), model));
         else template.keys(model).forEach(key -> template.commands().execute("DEL", key));
     }
     public Page<T> query(String index, CompoundQuery query, Pageable page) { return template.query(index, query, page, model); }

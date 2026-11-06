@@ -14,11 +14,13 @@ public final class EntityModel<T> {
     private final EntityTtl ttl;
     private final DatadamGeneratedId generatedId;
     private final EntityVersion version;
+    private final DatadamStorage storage;
     public EntityModel(Class<T> type) {
         this.type = type;
         var document = type.getAnnotation(DatadamDocument.class);
         if (document == null || document.prefix().isBlank()) throw new IllegalArgumentException("Entity needs @DatadamDocument with a prefix: " + type);
         prefix = document.prefix();
+        storage = document.storage();
         // SCAN MATCH treats these as glob operators. Reject ambiguous keyspaces.
         if (prefix.matches(".*[\\[\\]*?\\\\].*")) throw new IllegalArgumentException("Prefix cannot contain glob operators");
         List<Field> ids = new ArrayList<>();
@@ -45,6 +47,8 @@ public final class EntityModel<T> {
     }
     public Class<T> type() { return type; }
     public String prefix() { return prefix; }
+    public DatadamStorage storage() { return storage; }
+    public boolean isHash() { return storage == DatadamStorage.HASH; }
     public Object id(T entity) { return ReflectionUtils.getField(id, entity); }
     public Class<?> idType() { return id.getType(); }
     public String idProperty() { return id.getName(); }

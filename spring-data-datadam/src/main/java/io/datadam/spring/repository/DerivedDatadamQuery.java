@@ -52,7 +52,7 @@ final class DerivedDatadamQuery implements RepositoryQuery {
                 if (part.shouldIgnoreCase() == Part.IgnoreCaseType.ALWAYS && type != String.class) throw invalid("IgnoreCase needs a String property");
                 if (isRange(part.getType()) && !numeric) throw invalid("Range predicates need a numeric property: " + property);
                 if ((part.getType() == Part.Type.TRUE || part.getType() == Part.Type.FALSE) && !bool) throw invalid("True/False needs a boolean property");
-                predicates.add(new Predicate(part.getType(), template.jsonPath(model.type(), property), position, numeric, ignoreCase));
+                predicates.add(new Predicate(part.getType(), template.indexPath(model, property), position, numeric, ignoreCase));
                 position += part.getNumberOfArguments();
             }
             groups.add(List.copyOf(predicates));
@@ -114,7 +114,7 @@ final class DerivedDatadamQuery implements RepositoryQuery {
     private Plan select(Sort sort) {
         if (sort.stream().anyMatch(o -> o.isIgnoreCase() || o.getNullHandling() != Sort.NullHandling.NATIVE))
             throw invalid("Sort supports native ordering only");
-        List<Order> orders = sort.stream().map(o -> new Order(template.jsonPath(model.type(), o.getProperty()), o.getDirection())).toList();
+        List<Order> orders = sort.stream().map(o -> new Order(template.indexPath(model, o.getProperty()), o.getDirection())).toList();
         return indexes.stream().map(index -> candidate(index, orders)).filter(Objects::nonNull)
             .sorted(Comparator.comparingInt(Plan::score).reversed().thenComparing(p -> p.index().name()))
             .findFirst().orElseThrow(() -> invalid("No compatible native index for these predicates and sort; declare a covering IDX index or compatible FT schema"));
@@ -125,10 +125,12 @@ final class DerivedDatadamQuery implements RepositoryQuery {
         for (Predicate predicate : predicates) {
             var field = field(index, predicate.path());
             if (field == null || predicate.numeric() != (field.type() == IndexField.Type.NUMERIC)) return null;
+            if (!predicate.numeric() && splitTags(index, field)) return null;
             if (predicate.ignoreCase() && (index.kind() != DatadamIndex.Kind.SEARCH || field.caseSensitive())) return null;
             if (!predicate.numeric() && !predicate.ignoreCase() && index.kind() == DatadamIndex.Kind.SEARCH && !field.caseSensitive()) return null;
         }
         for (Order order : orders) if (field(index, order.path()) == null) return null;
+        if (orders.stream().anyMatch(o -> field(index, o.path()).type() == IndexField.Type.TAG && splitTags(index, field(index, o.path())))) return null;
         if (index.kind() == DatadamIndex.Kind.SEARCH) {
             if (orders.size() > 1) return null;
             // Sorting strings on a folded TAG changes byte order, even if predicates use other fields.
@@ -236,6 +238,9 @@ final class DerivedDatadamQuery implements RepositoryQuery {
         return Arrays.stream(index.fields()).filter(f -> f.path().equals(path)).findFirst().orElse(null);
     }
     private static boolean isEquality(Part.Type type) { return type == Part.Type.SIMPLE_PROPERTY || type == Part.Type.TRUE || type == Part.Type.FALSE; }
+    private boolean splitTags(DatadamIndex index, IndexField field) {
+        return !field.separator().isEmpty() || model.isHash() && index.kind() == DatadamIndex.Kind.SEARCH;
+    }
     private static boolean isRange(Part.Type type) {
         return EnumSet.of(Part.Type.BETWEEN, Part.Type.GREATER_THAN, Part.Type.GREATER_THAN_EQUAL, Part.Type.LESS_THAN, Part.Type.LESS_THAN_EQUAL).contains(type);
     }

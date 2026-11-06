@@ -1,0 +1,2 @@
+# Unified patches intentionally contain a single space on empty context lines.
+server-patches/*.patch -whitespace
