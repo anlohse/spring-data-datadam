@@ -99,6 +99,12 @@ O CRUD HASH exige a extensão Datadam HREPLACE e a correção de rollback inclu�
 
 Schema ON HASH e consultas IDX/FT declaradas, derivadas e programáticas estão disponíveis com `/hash-customers`. `IndexField.separator` explicita a divisão de TAGs; IDX HASH exige alias igual ao campo e FT permite aliases próprios. Consulte [índices e consultas HASH](docs/hash-indexes-and-queries.md) para diferenças de TAG/NUMERIC e limites de igualdade na derivação.
 
+## Projeções nativas
+
+Consultas anotadas IDX/FT podem retornar records e interfaces fechadas em List/Page, selecionando somente as propriedades solicitadas. A API programática usa `ProjectionSpec` com `projectQuery`/`projectSearch`. `@ProjectionProperty` mapeia nomes do DTO para propriedades Java da entidade. Não há leitura completa adicional nem callbacks de entidade nas projeções.
+
+Projeções JSON requerem a opção Datadam RETURNJSON, incluída no [patch de servidor](server-patches/README.md), para distinguir JSON null da string `"null"`; HASH usa RETURN existente. Consulte [projeções](docs/projections.md) para o conjunto suportado, conversões, aliases e os endpoints `/customer-projections`.
+
 ## Controle de concorrência
 
 Adicione `@Version Long version` para exigir a versão atual ao atualizar ou excluir. Uma entidade nova começa com versão null e é persistida com zero; cada atualização incrementa o contador. A comparação e a gravação acontecem no servidor: uma versão obsoleta gera `OptimisticLockingFailureException`, preservando documento, TTL e índices.
@@ -190,6 +196,8 @@ A API de exemplo expõe `GET /customers/derived?city=SP&minimum=18&maximum=40`: 
 | `GreaterThan`, `GreaterThanEqual`, `LessThan`, `LessThanEqual` | Faixas numéricas com limites correspondentes |
 | `And`, `Or` | Interseção/união; grupos do parser Spring são preservados com parênteses em FT |
 | `In` | Coleção ou array de valores escalares; usa união em FT; coleção vazia é rejeitada |
+| `StartingWith` | Prefixo String literal; faixa TAG em IDX ou prefixo parametrizado em FT |
+| `Not`, `NotIn` | Negação numérica em FT, exigindo presença do campo; exclui ausentes/null/inválidos |
 | `True`, `False` | Igualdade em uma propriedade booleana |
 | `IgnoreCase`, `AllIgnoreCase` | Exigem TAG FT sem CASESENSITIVE; aceitam parâmetros ASCII, conforme o folding nativo do Datadam |
 | `OrderBy`, `Sort`, `Pageable.sort` | Ordenação nativa compatível com o índice; ordens conflitantes são rejeitadas |
@@ -210,7 +218,9 @@ A escolha do índice preserva o significado da consulta:
 - Ordenação IDX deve seguir os campos variáveis do índice; campos fixados por igualdade podem ser omitidos da ordem. FT aceita um único campo de ordenação. A ordenação solicitada nunca é aplicada depois de paginar.
 - Sem índice compatível para os predicados e a ordem estática, a criação do repositório falha. Uma ordem dinâmica incompatível falha antes de enviar a consulta. Não há criação de schema automática como efeito da derivação.
 
-Os parâmetros não podem ser null; TAG vazio e IN vazio são rejeitados. Predicados como `IsNull`, `Containing`, `Like`, `Not`, `NotIn`, exclusão derivada, projeções, parâmetros Limit/scrolling e comparação textual por faixa ainda não são suportados e falham na inicialização. `Top`/`First` não podem ser combinados com Pageable, count ou exists; retorno de entidade/Optional também não aceita Pageable. As consultas anotadas continuam disponíveis para expressar diretamente recursos nativos fora desse subconjunto.
+Os parâmetros não podem ser null; TAG vazio e IN/NOT_IN vazio são rejeitados. `Not`/`NotIn` são suportados somente para números. `IsNull`, `Containing`, `Like`, negação TAG, exclusão derivada, projeções derivadas, parâmetros Limit/scrolling e comparação textual por faixa ainda não são suportados e falham na inicialização. `Top`/`First` não podem ser combinados com Pageable, count ou exists; retorno de entidade/Optional também não aceita Pageable. As consultas anotadas continuam disponíveis para expressar diretamente recursos nativos fora desse subconjunto.
+
+Consulte a [matriz de operadores e semântica da derivação](docs/derived-queries.md) para prefixos, negação, campos ausentes, limitações TAG/IgnoreCase e exemplos HTTP em `/customer-queries/json` e `/customer-queries/hash`.
 
 A sintaxe segue os [nomes de consultas do Spring Data](https://docs.spring.io/spring-data/commons/reference/repositories/query-keywords-reference.html), respeitando o subconjunto suportado por este módulo.
 
@@ -250,10 +260,10 @@ Se o Maven falhar com PKIX nesta máquina, o script já usa o repositório de ce
 
 Escopo de 0.1:
 
-- Mapeamento de repositórios em JSON. Comandos HASH, JSON adicionais e projeções nativas podem ser enviados com `DatadamCommands.execute`, mas não são automaticamente convertidos para entidades HASH.
-- Consultas anotadas, derivação de nomes e API programática, com IDs atribuídos ou geração opcional. Repositórios reativos, transações Spring e optimistic locking ainda não estão implementados. Derivação é limitada ao subconjunto documentado acima.
+- Mapeamento de repositórios em JSON e HASH, operações JSON adicionais e projeções nativas IDX/FT, conforme as páginas específicas de cada recurso.
+- Consultas anotadas, derivação de nomes e API programática, com IDs atribuídos ou geração opcional, TTL, auditoria/callbacks e optimistic locking. Repositórios reativos e transações Spring continuam no roadmap. Derivação é limitada ao subconjunto documentado acima.
 - `Page` de IDX faz `IDX.COUNT` e `IDX.QUERY` separados. Sob concorrência, conteúdo e total podem refletir momentos distintos. Para somente contagem, use `count(index, query)`; FT já devolve o total no mesmo comando.
-- `findAll`, `count()` e `deleteAll()` percorrem o prefixo usando SCAN TYPE ReJSON-RL. Para consultas de negócio e grandes coleções, prefira índices; o `DBSIZE` do Datadam é uma estimativa global.
+- `findAll`, `count()` e `deleteAll()` percorrem o prefixo usando SCAN por tipo de armazenamento (ReJSON-RL ou hash). Para consultas de negócio e grandes coleções, prefira índices; o `DBSIZE` do Datadam é uma estimativa global.
 - `saveAll` e exclusões em lote são sequenciais e podem ter êxito parcial. Sem política de TTL, `save` faz JSON.SET e mantém o prazo existente. Com TTL, usa um script isolado para gravar e expirar, com os limites de durabilidade descritos na documentação de TTL. Não há emulação de índices com sets de Redis.
 - FT oferece TAG/NUMERIC; não oferece TEXT, GEO, VECTOR, agregações ou scoring. Opções de ordenação não suportadas são rejeitadas.
 - A API de exemplo tem bind local; autenticação HTTP e implantação externa estão fora do escopo desta aplicação de teste.

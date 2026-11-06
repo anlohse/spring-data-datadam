@@ -34,4 +34,6 @@ public class SimpleDatadamRepository<T, ID> implements DatadamRepository<T, ID> 
     public long count(String index, CompoundQuery query) { return template.count(index, query, model); }
     public List<T> lookup(String index, Object... values) { return template.lookup(index, model, values); }
     public Page<T> search(String index, SearchQuery query, Pageable page) { return template.search(index, query, page, model); }
+    public <R> Page<R> projectQuery(String index,CompoundQuery query,Pageable page,ProjectionSpec<R> projection){return template.projectQuery(index,query,page,model,projection);}
+    public <R> Page<R> projectSearch(String index,SearchQuery query,Pageable page,ProjectionSpec<R> projection){return template.projectSearch(index,query,page,model,projection);}
 }

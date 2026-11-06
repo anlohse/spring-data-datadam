@@ -5,6 +5,24 @@ import io.datadam.spring.repository.DatadamRepository;
 import org.springframework.data.domain.*;
 
 public interface CustomerRepository extends DatadamRepository<Customer, String> {
+    Page<Customer> findByEmailStartingWithOrderByEmailAsc(String prefix, Pageable pageable);
+    long countByEmailStartingWith(String prefix);
+    boolean existsByEmailStartingWith(String prefix);
+    Slice<Customer> findByEmailStartingWith(String prefix, Pageable pageable);
+    java.util.List<Customer> findTop2ByEmailStartingWithOrderByEmailAsc(String prefix);
+    Page<Customer> findByCityStartingWithAndAgeNotOrderByAgeAsc(String prefix, int excludedAge, Pageable pageable);
+    java.util.List<Customer> findByCityStartingWithIgnoreCaseOrderByAgeAsc(String prefix);
+    Page<Customer> findByAgeNot(int excludedAge, Pageable pageable);
+    Page<Customer> findByAgeNotIn(java.util.Collection<Integer> excludedAges, Pageable pageable);
+    java.util.List<Customer> findByCityStartingWithAndAgeNotInOrEmail(String prefix, java.util.Collection<Integer> excludedAges, String email);
+    @IdxQuery(index="demo:customers:city-age",value="city = ?0",descending=true)
+    Page<CustomerSummary> summariesByCity(String city,Pageable pageable);
+    @FtQuery(index="demo:customers:search",value="@city:{?0}")
+    Page<CustomerView> viewsByCity(String city,Pageable pageable);
+    @IdxQuery(index="demo:customers:city-age",value="city = ?0",descending=true)
+    java.util.List<CustomerSummary> summaryListByCity(String city,Pageable pageable);
+    @FtQuery(index="demo:customers:search",value="@city:{?0}")
+    java.util.List<CustomerView> viewListByCity(String city,Pageable pageable);
     Page<Customer> findByCityAndAgeBetweenOrderByAgeDesc(String city, int minimum, int maximum, Pageable pageable);
 
     Slice<Customer> findByCityAndAgeGreaterThanEqualOrderByAgeAsc(String city, int minimum, Pageable pageable);

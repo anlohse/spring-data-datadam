@@ -15,7 +15,8 @@ import org.springframework.data.repository.query.parser.*;
 final class DerivedDatadamQuery implements RepositoryQuery {
     private static final Set<Part.Type> SUPPORTED = EnumSet.of(Part.Type.SIMPLE_PROPERTY, Part.Type.BETWEEN,
         Part.Type.GREATER_THAN, Part.Type.GREATER_THAN_EQUAL, Part.Type.LESS_THAN, Part.Type.LESS_THAN_EQUAL,
-        Part.Type.IN, Part.Type.TRUE, Part.Type.FALSE);
+        Part.Type.IN, Part.Type.TRUE, Part.Type.FALSE, Part.Type.STARTING_WITH,
+        Part.Type.NEGATING_SIMPLE_PROPERTY, Part.Type.NOT_IN);
     private final Method method;
     private final QueryMethod queryMethod;
     private final PartTree tree;
@@ -47,6 +48,10 @@ final class DerivedDatadamQuery implements RepositoryQuery {
                 Class<?> type = part.getProperty().getLeafType();
                 boolean numeric = isNumeric(type);
                 boolean bool = type == boolean.class || type == Boolean.class;
+                if (part.getType() == Part.Type.STARTING_WITH && type != String.class)
+                    throw invalid("StartingWith requires a String property");
+                if (isNegative(part.getType()) && !numeric)
+                    throw invalid("Not/NotIn currently require numeric properties; TAG negation cannot safely exclude missing/null fields");
                 if (!numeric && !bool && type != String.class && !type.isEnum()) throw invalid("Unsupported scalar property " + property);
                 boolean ignoreCase = part.shouldIgnoreCase() != Part.IgnoreCaseType.NEVER && type == String.class;
                 if (part.shouldIgnoreCase() == Part.IgnoreCaseType.ALWAYS && type != String.class) throw invalid("IgnoreCase needs a String property");
@@ -138,7 +143,7 @@ final class DerivedDatadamQuery implements RepositoryQuery {
             Sort mappedSort = orders.isEmpty() ? Sort.unsorted() : Sort.by(new Sort.Order(orders.get(0).direction(), field(index, orders.get(0).path()).alias()));
             return new Plan(index, false, mappedSort, 1);
         }
-        if (groups.size() > 1 || predicates.stream().anyMatch(p -> p.type() == Part.Type.IN)) return null;
+        if (groups.size() > 1 || predicates.stream().anyMatch(p -> p.type() == Part.Type.IN || isNegative(p.type()))) return null;
         // A document missing any IDX field is absent. Every field must therefore be required by predicates.
         if (Arrays.stream(index.fields()).anyMatch(f -> predicates.stream().noneMatch(p -> p.path().equals(f.path())))) return null;
         Set<String> equalities = new HashSet<>();
@@ -161,6 +166,12 @@ final class DerivedDatadamQuery implements RepositoryQuery {
         for (Predicate predicate : groups.get(0)) {
             String alias = field(plan.index(), predicate.path()).alias();
             String value = scalar(predicate, predicate.type() == Part.Type.TRUE ? true : predicate.type() == Part.Type.FALSE ? false : accessor.getBindableValue(predicate.position()));
+            if (predicate.type() == Part.Type.STARTING_WITH) {
+                query = query.where(alias, ">=", value);
+                String upper = prefixUpperBound(value);
+                if (upper != null) query = query.where(alias, "<", upper);
+                continue;
+            }
             query = query.where(alias, switch (predicate.type()) {
                 case GREATER_THAN -> ">";
                 case GREATER_THAN_EQUAL, BETWEEN -> ">=";
@@ -181,19 +192,25 @@ final class DerivedDatadamQuery implements RepositoryQuery {
             for (Predicate predicate : group) {
                 String alias = escape(field(plan.index(), predicate.path()).alias());
                 Object value = predicate.type() == Part.Type.TRUE ? true : predicate.type() == Part.Type.FALSE ? false : accessor.getBindableValue(predicate.position());
-                if (predicate.type() == Part.Type.IN) {
+                if (predicate.type() == Part.Type.IN || predicate.type() == Part.Type.NOT_IN) {
                     List<?> members = members(value);
-                    if (members.isEmpty()) throw invalid("IN needs at least one value");
+                    if (members.isEmpty()) throw invalid("IN/NOT_IN needs at least one value");
                     List<String> alternatives = new ArrayList<>();
                     for (Object member : members) alternatives.add(equality(alias, predicate, bind(params, scalar(predicate, member))));
-                    conjunctions.add("(" + String.join(" | ", alternatives) + ")");
+                    String union = "(" + String.join(" | ", alternatives) + ")";
+                    // A bare native complement includes documents without this numeric field.
+                    conjunctions.add(predicate.type() == Part.Type.NOT_IN ? "(@" + alias + ":[-inf +inf] -" + union + ")" : union);
                 } else {
                     String encoded = scalar(predicate, value);
+                    if (predicate.type() == Part.Type.STARTING_WITH && (encoded.startsWith(" ") || encoded.startsWith("\t")))
+                        throw invalid("FT StartingWith cannot preserve leading spaces/tabs; use an unsplit IDX covering the predicates");
                     String bound = bind(params, (predicate.type() == Part.Type.GREATER_THAN || predicate.type() == Part.Type.LESS_THAN ? "(" : "") + encoded);
                     conjunctions.add(switch (predicate.type()) {
                         case GREATER_THAN, GREATER_THAN_EQUAL -> "@" + alias + ":[" + bound + " +inf]";
                         case LESS_THAN, LESS_THAN_EQUAL -> "@" + alias + ":[-inf " + bound + "]";
                         case BETWEEN -> "@" + alias + ":[" + bound + " " + bind(params, scalar(predicate, accessor.getBindableValue(predicate.position() + 1))) + "]";
+                        case STARTING_WITH -> "@" + alias + ":{" + bound + "*}";
+                        case NEGATING_SIMPLE_PROPERTY -> "(@" + alias + ":[-inf +inf] -" + equality(alias, predicate, bound) + ")";
                         default -> equality(alias, predicate, bound);
                     });
                 }
@@ -210,6 +227,10 @@ final class DerivedDatadamQuery implements RepositoryQuery {
         String encoded = template.scalarValue(value);
         if (predicate.ignoreCase() && encoded.chars().anyMatch(c -> c > 127)) throw invalid("Datadam IgnoreCase supports ASCII only");
         if (!predicate.numeric() && encoded.isEmpty()) throw invalid("Empty TAG predicates are unsupported");
+        if (predicate.type() == Part.Type.STARTING_WITH) {
+            if (!(value instanceof String) || !java.nio.charset.StandardCharsets.UTF_8.newEncoder().canEncode(encoded))
+                throw invalid("StartingWith requires a valid UTF-8 String prefix");
+        }
         return encoded;
     }
     private boolean canLookup(DatadamIndex index) {
@@ -222,7 +243,7 @@ final class DerivedDatadamQuery implements RepositoryQuery {
         if (tree.isExistsProjection()) { if (type != boolean.class && type != Boolean.class) throw invalid("existsBy must return boolean/Boolean"); return; }
         if (type != List.class && type != Page.class && type != Slice.class && type != Optional.class && type != model.type())
             throw invalid("Supported results: entity, Optional, List, Page or Slice");
-        if (queryMethod.getReturnedObjectType() != model.type()) throw invalid("Derived projections are unsupported");
+        if (queryMethod.getReturnedObjectType() != model.type()) throw invalid("Derived projections are unsupported; use @IdxQuery or @FtQuery for native projections");
         if ((type == Optional.class || type == model.type()) && queryMethod.getParameters().hasPageableParameter())
             throw invalid("Single-result methods cannot declare Pageable");
         if (tree.isLimiting() && (type == Optional.class || type == model.type()) && tree.getMaxResults() != 1)
@@ -238,6 +259,22 @@ final class DerivedDatadamQuery implements RepositoryQuery {
         return Arrays.stream(index.fields()).filter(f -> f.path().equals(path)).findFirst().orElse(null);
     }
     private static boolean isEquality(Part.Type type) { return type == Part.Type.SIMPLE_PROPERTY || type == Part.Type.TRUE || type == Part.Type.FALSE; }
+    private static boolean isNegative(Part.Type type) {
+        return type == Part.Type.NEGATING_SIMPLE_PROPERTY || type == Part.Type.NOT_IN;
+    }
+    /** Unicode scalar order is UTF-8 byte order. Skip surrogate code points and truncate the max suffix. */
+    private static String prefixUpperBound(String prefix) {
+        for (int end = prefix.length(); end > 0;) {
+            int point = prefix.codePointBefore(end);
+            end -= Character.charCount(point);
+            if (point < Character.MAX_CODE_POINT) {
+                int next = point + 1;
+                if (next >= Character.MIN_SURROGATE && next <= Character.MAX_SURROGATE) next = Character.MAX_SURROGATE + 1;
+                return prefix.substring(0, end) + new String(Character.toChars(next));
+            }
+        }
+        return null;
+    }
     private boolean splitTags(DatadamIndex index, IndexField field) {
         return !field.separator().isEmpty() || model.isHash() && index.kind() == DatadamIndex.Kind.SEARCH;
     }
@@ -259,7 +296,7 @@ final class DerivedDatadamQuery implements RepositoryQuery {
             for (int i = 0; i < java.lang.reflect.Array.getLength(value); i++) list.add(java.lang.reflect.Array.get(value, i));
             return list;
         }
-        throw invalid("IN needs a Collection or array");
+        throw invalid("IN/NOT_IN needs a Collection or array");
     }
     private Sort combine(Sort fixed, Sort dynamic) {
         Map<String, Sort.Order> orders = new LinkedHashMap<>();
