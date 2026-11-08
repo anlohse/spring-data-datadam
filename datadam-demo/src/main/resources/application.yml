@@ -6,6 +6,19 @@ datadam:
   port: ${DATADAM_PORT:6380}
   username: ${DATADAM_USERNAME:app}
   password: ${DATADAM_PASSWORD:local-app-password}
+  health:
+    enabled: true
+  metrics:
+    enabled: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
 spring:
   data:
     web:

@@ -2,9 +2,9 @@
 
 Este documento acompanha a evolução da biblioteca, da base funcional atual até uma versão adequada para adoção em outros projetos. A ordem busca entregar utilidade em cada etapa, sem depender de uma reescrita futura.
 
-**Estado atual:** CRUD, consultas e projeções nativas IDX/FT em JSON e HASH, com TTL, IDs, auditoria, callbacks e controle de versão, mais operações JSON com incrementos, arrays e merge. A derivação inclui prefixos String e negação numérica com presença explícita, com explicação do plano; índices têm APIs públicas de inspeção, comparação e migração explícita retomável. São 332 testes Java aprovados na última execução confirmada: 167 unitários e 165 de integração com Datadam real no Docker, incluindo reinício isolado durante backfill. O servidor com HREPLACE/RETURNJSON passou também por 186 testes nativos e pela integração/persistência C++ na entrega 5.1; 5.2 e a etapa 6 não acrescentaram mudanças no C++.
+**Estado atual:** CRUD, consultas e projeções nativas IDX/FT em JSON e HASH, com TTL, IDs, auditoria, callbacks e controle de versão, mais operações JSON com incrementos, arrays e merge. Há diagnóstico de consultas/pool e migração explícita de índices. A matriz valida Java 17/21/25 com Boot 3.5.16 e Data Commons 3.5.13; imagens são identificadas por revisão/digests e há resultados de desempenho publicados. São 376 testes Java aprovados na última execução completa: 187 unitários e 189 de integração com Datadam real no Docker. A matriz reexecuta também os 187 unitários em cada JVM isolada (561 execuções adicionais). O servidor com HREPLACE/RETURNJSON passou por 186 testes nativos e integração/persistência C++ na entrega 5.1; as entregas posteriores até 7.3 não alteraram o código C++.
 
-**Próxima entrega:** **7.1 — Diagnóstico da biblioteca**. A implementação desse recurso ainda não começou.
+**Próxima entrega:** **8.1 — Projeto pronto para consumo**. A implementação dessa entrega ainda não começou.
 
 ## Como vamos trabalhar
 
@@ -246,23 +246,29 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 ### 7.1. Diagnóstico da biblioteca
 
-- [ ] Expor configuração útil do pool e limites de espera, com padrões documentados.
-- [ ] Adicionar health check e métricas opcionais de conexão, latência e erros.
-- [ ] Garantir que logs e diagnósticos não incluam credenciais ou valores sensíveis por padrão.
+- [x] Expor configuração útil do pool e limites de espera, com padrões documentados.
+- [x] Adicionar health check e métricas opcionais de conexão, latência e erros.
+- [x] Garantir que logs e diagnósticos não incluam credenciais ou valores sensíveis por padrão.
+
+**Entregue em 2026-11-07:** limites separados de conexão/leitura/espera com fallback compatível a `datadam.timeout`, tamanhos e manutenção do pool com validação antecipada e metadados Spring. Health PING e métricas Micrometer são opcionais, desativados por padrão na biblioteca e habilitados no demo. Timers/gauges/counters usam operações e resultados enumerados, sem argumentos, credenciais, chaves ou mensagens de exceção; health e validação de conexões não registram falhas detalhadas. Inclui testes sem dependências opcionais, sanitização, permissões de autenticação, esgotamento controlado do pool e HTTP Actuator. São 20 novos testes unitários e 6 de integração; suíte completa aprovada com 358 testes (187 unitários e 171 de integração). Configuração, custos e limites em [docs/library-diagnostics.md](docs/library-diagnostics.md).
 
 ### 7.2. Testes de falhas e segurança
 
-- [ ] Automatizar cenários de reinício, timeout, perda de conexão e saturação do pool.
-- [ ] Testar TLS e validação de certificado com ambiente reproduzível.
-- [ ] Ampliar testes ACL para leitura, escrita, consultas e administração de índices.
-- [ ] Documentar resultados incertos após falha de transporte; não repetir gravações automaticamente quando não for possível saber se foram aplicadas.
+- [x] Automatizar cenários de reinício, timeout, perda de conexão e saturação do pool.
+- [x] Testar TLS e validação de certificado com ambiente reproduzível.
+- [x] Ampliar testes ACL para leitura, escrita, consultas e administração de índices.
+- [x] Documentar resultados incertos após falha de transporte; não repetir gravações automaticamente quando não for possível saber se foram aplicadas.
+
+**Entregue em 2026-11-07:** 15 testes de integração adicionais com contêineres isolados: seis de transporte (proxy RESP com perda antes/depois da escrita, timeout, confirmação perdida com @Version, reinício e fila/esgotamento), quatro de TLS (cadeia confiável, CA desconhecida, identidade incorreta e validade expirada) e cinco de ACL para JSON/HASH, consultas e metadados, administração e EVAL. O pool automático habilita identificação do endpoint TLS; cliente e servidor do teste TLS ficam no Docker para preservar a cadeia original mesmo em hosts com inspeção TLS. As gravações não são repetidas automaticamente; os testes demonstram a ambiguidade entre escrita não enviada e escrita aplicada sem confirmação. Suíte completa aprovada: 373 testes (187 unitários e 186 de integração). Reprodução, mudança TLS e reconciliação em [docs/failures-and-security.md](docs/failures-and-security.md).
 
 ### 7.3. Matriz de compatibilidade e desempenho
 
-- [ ] Definir e testar as versões suportadas de Java, Spring Boot/Spring Data e Datadam.
-- [ ] Fixar uma versão identificável da imagem do Datadam nos testes automatizados.
-- [ ] Medir casos representativos de IDX, FT, paginação e atualizações, registrando ambiente e volume de dados.
-- [ ] Documentar custos de COUNT, validação de conexão, listas sem limite e SCAN nas operações globais do repositório.
+- [x] Definir e testar as versões suportadas de Java, Spring Boot/Spring Data e Datadam.
+- [x] Fixar uma versão identificável da imagem do Datadam nos testes automatizados.
+- [x] Medir casos representativos de IDX, FT, paginação e atualizações, registrando ambiente e volume de dados.
+- [x] Documentar custos de COUNT, validação de conexão, listas sem limite e SCAN nas operações globais do repositório.
+
+**Entregue em 2026-11-07:** matriz Java 17.0.21/21.0.13/25.0.5 em Docker, cada uma com 187 testes unitários e consumidor Spring Boot 3.5.16/Data Commons 3.5.13 contra Datadam fixado no commit e2e2c0a. O build usa git archive da revisão e label OCI; testes verificam a revisão e usam o ID resolvido, com JVMs por digest. Suíte completa: 376 testes (187 unitários, 189 de integração), além das reexecuções unitárias na matriz. Workload opcional mediu 104 combinações de formato/operação/validação/volume com 1.000 e 10.000 documentos por formato, servidor limitado a 2 CPUs/1 GiB e resultados CSV/ambiente publicados. Custos, limites de interpretação e reprodução em [docs/compatibility-and-performance.md](docs/compatibility-and-performance.md).
 
 **Concluído quando:** as garantias de conexão e segurança forem testadas automaticamente e houver uma matriz de compatibilidade verificável.
 
@@ -325,5 +331,8 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 | 5.2 — Ampliação da derivação | Concluída | Prefixos String e negação numérica com presença; matriz e exemplos; 283 testes Java aprovados (132 unitários e 151 de integração) |
 | 6.1 — Inspeção e diagnóstico | Concluída | Schema/status tipados, comparação sem DDL e planos derivados; 309 testes Java aprovados (152 unitários e 157 de integração) |
 | 6.2 — Migrações explícitas | Concluída | Preparação versionada retomável, validação, retirada separada e recuperação UNIQUE; 332 testes Java aprovados (167 unitários e 165 de integração) |
+| 7.1 — Diagnóstico da biblioteca | Concluída | Pool configurável, health/métricas opcionais e telemetria sanitizada; 358 testes Java aprovados (187 unitários e 171 de integração) |
+| 7.2 — Testes de falhas e segurança | Concluída | Falhas com resultado incerto, reinício/pool, TLS com identidade e matriz ACL; 373 testes Java aprovados (187 unitários e 186 de integração) |
+| 7.3 — Matriz de compatibilidade e desempenho | Concluída | Java 17/21/25, imagem por revisão/ID, workload e artefatos publicados; 376 testes Maven e 561 execuções unitárias adicionais na matriz |
 
 Ao terminar cada entrega, acrescentaremos aqui o resultado, os testes executados e eventuais decisões que alterem os próximos passos.

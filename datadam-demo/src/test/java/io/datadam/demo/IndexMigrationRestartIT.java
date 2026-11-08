@@ -19,7 +19,7 @@ class IndexMigrationRestartIT {
     void incompleteBackfillIsResumedAfterServerRestartAndClientRecreation() throws Exception {
         String container = "datadam-migration-it-" + UUID.randomUUID();
         try {
-            docker("run", "-d", "--name", container, "--cpus", "0.5", "-p", "127.0.0.1::6379", "datadam:latest", "--memcache-port", "0", "--read-threads", "2");
+            docker("run", "-d", "--name", container, "--cpus", "0.5", "-p", "127.0.0.1::6379", io.datadam.demo.support.TestImages.datadam(), "--memcache-port", "0", "--read-threads", "2");
             String binding = docker("port", container, "6379/tcp").trim();
             int port = Integer.parseInt(binding.substring(binding.lastIndexOf(':') + 1));
             waitForServer(port);

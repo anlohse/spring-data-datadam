@@ -5,11 +5,23 @@
   <dependencies>
     <dependency><groupId>io.datadam</groupId><artifactId>spring-data-datadam</artifactId><version>${project.version}</version></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
+    <dependency><groupId>org.junit.platform</groupId><artifactId>junit-platform-console</artifactId><scope>test</scope></dependency>
   </dependencies>
-  <build><plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin></plugins></build>
+  <build>
+    <testResources>
+      <testResource><directory>src/test/resources</directory></testResource>
+      <testResource><directory>${project.basedir}/../config</directory><includes><include>test-images.properties</include></includes></testResource>
+    </testResources>
+    <plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin></plugins>
+  </build>
   <profiles><profile><id>integration</id><build><plugins><plugin>
     <groupId>org.apache.maven.plugins</groupId><artifactId>maven-failsafe-plugin</artifactId>
     <executions><execution><goals><goal>integration-test</goal><goal>verify</goal></goals></execution></executions>
+  </plugin></plugins></build></profile>
+  <profile><id>performance</id><build><plugins><plugin>
+    <groupId>org.apache.maven.plugins</groupId><artifactId>maven-failsafe-plugin</artifactId>
+    <configuration><reportsDirectory>${project.build.directory}/performance/failsafe-reports</reportsDirectory></configuration>
   </plugin></plugins></build></profile></profiles>
 </project>

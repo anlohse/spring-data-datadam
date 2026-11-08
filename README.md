@@ -6,19 +6,19 @@ O [roadmap de evolução](ROADMAP.md) acompanha as entregas concluídas, as pró
 
 ## Executar no Windows
 
-Pré-requisitos: Java 17 ou superior (validado com Java 25), Maven e Docker Desktop com engine Linux. Spring Boot 3.5.16 gerencia as versões de Spring Data Commons, Jackson e Jedis. A linha 3.5 suporta Java 25 conforme os [requisitos oficiais](https://docs.spring.io/spring-boot/3.5/system-requirements.html).
+Runtimes validados: Java 17, 21 e 25, com Spring Boot 3.5.16 e Spring Data Commons 3.5.13. O build registrado usa JDK 25.0.2/Maven 3.8.4, com release 17, e o Datadam roda em Docker Linux x86_64. Consulte a [matriz de compatibilidade e desempenho](docs/compatibility-and-performance.md) para imagens fixadas, escopo dos testes e medições publicadas.
 
 Na pasta deste README:
 
 ```powershell
-# A imagem datadam:latest já está disponível nesta máquina.
+# Após preparar a imagem versionada (o primeiro build pode usar -BuildDatadam):
 .\scripts\run-local.ps1 -IntegrationTests -Background
 
 # Para recompilar e substituir a instância iniciada pelo script:
 .\scripts\run-local.ps1 -Restart -IntegrationTests -Background
 
-# Se precisar construir a imagem a partir do projeto C++:
-.\scripts\run-local.ps1 -BuildDatadam -IntegrationTests -Background
+# Para construir a revisão C++ fixada, sem incluir alterações locais do checkout:
+.\scripts\run-local.ps1 -BuildDatadam -Restart -IntegrationTests -Background
 
 # Insere três clientes e executa consultas por HTTP; pode ser repetido.
 .\scripts\sample-data.ps1
@@ -71,7 +71,11 @@ datadam:
   ssl: false
 ```
 
-Há uma conexão RESP2 por comando, obtida de um pool Jedis. Por padrão, `datadam.validate-connection=true` executa PING ao obter a conexão para descartar conexões antigas após reinício do servidor; isso adiciona uma ida e volta por comando. A espera por uma conexão do pool é limitada por `datadam.timeout`. Não são enviados comandos de cluster, configuração do servidor ou ativação de notificações de keyspace. Apenas o database 0 é usado, como exige o Datadam.
+Há uma conexão RESP2 por comando, obtida de um pool Jedis. Por padrão, `datadam.validate-connection=true` executa PING ao obter a conexão para descartar conexões antigas após reinício do servidor; isso adiciona uma ida e volta por comando. `datadam.timeout` mantém o padrão de 5s para conexão, leitura e espera, com overrides em `connect-timeout`, `read-timeout` e `pool.max-wait`. Não são enviados comandos de cluster, configuração do servidor ou ativação de notificações de keyspace. Apenas o database 0 é usado, como exige o Datadam.
+
+O item 7.1 expõe limites/tamanhos do pool, health opcional e métricas Micrometer opcionais, sem argumentos ou credenciais na telemetria. A biblioteca mantém os recursos desativados por padrão; o demo os habilita em `/actuator/health` e `/actuator/metrics`, com detalhes de health ocultos. Consulte [diagnóstico operacional](docs/library-diagnostics.md) para configuração, custos, categorias de erro, dependências opcionais e exemplos.
+
+O item 7.2 valida reinício, saturação, quedas/timeout com escritas de resultado incerto e uma matriz ACL JSON/HASH. `datadam.ssl=true` passa a verificar também o nome/IP do endpoint TLS, além da confiança e validade do certificado; ajuste host/SAN de instalações existentes quando necessário. Os testes geram certificados efêmeros e executam cliente e servidor TLS no Docker. Consulte [falhas e segurança](docs/failures-and-security.md) para reprodução, limites e reconciliação sem retry cego.
 
 ## Modelar entidade e índices
 
@@ -253,7 +257,9 @@ As senhas incluídas são exclusivamente para desenvolvimento local. A configura
 ## Testes e limites desta versão
 
 ```powershell
-docker compose up -d --no-build
+./scripts/build-test-image.ps1
+docker compose --env-file config/test-images.properties up -d --no-build
+# run-local.ps1 -IntegrationTests prepara também as JVMs fixadas e executa toda a matriz.
 mvn verify -Pintegration
 mvn install
 ```

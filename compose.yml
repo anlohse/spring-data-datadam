@@ -1,9 +1,7 @@
 name: datadam-spring-data
 services:
   datadam:
-    image: datadam:latest
-    build:
-      context: ${DATADAM_SOURCE:-D:/cpp/workspaces/datadam}
+    image: ${DATADAM_IMAGE:-datadam:spring-data-e2e2c0ae4e92}
     ports:
       - "127.0.0.1:6380:6379"
     volumes:
