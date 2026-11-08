@@ -32,7 +32,7 @@ class HashIndexContractTest {
     @Test void persistedSeparatorAndFtIdentifierDriftAreRejected() {
         var fake=new Schema(); fake.info=info("compound",List.of(List.of("city","TAG","SEPARATOR",",")));
         assertThatThrownBy(()->new DatadamIndexOperations(fake).ensureIndexes(Compound.class,Duration.ofSeconds(1))).isInstanceOf(DataIntegrityViolationException.class);
-        fake.info=info("search",List.of(List.of("home","TAG","city","SEPARATOR",",")));
+        fake.info=info("search",List.of(List.of("home","TAG","wrong","SEPARATOR",",")));
         fake.attributes=List.of(List.of("identifier","wrong","attribute","home","type","TAG","SEPARATOR",","));
         assertThatThrownBy(()->new DatadamIndexOperations(fake).ensureIndexes(Search.class,Duration.ofSeconds(1))).isInstanceOf(DataIntegrityViolationException.class);
     }
@@ -50,7 +50,7 @@ class HashIndexContractTest {
         assertThatThrownBy(()->new DatadamTemplate(fake,new ObjectMapper()).queryContent("idx",CompoundQuery.all(),0,10,new EntityModel<>(Compound.class)))
             .isInstanceOf(DataRetrievalFailureException.class).hasMessageContaining("prefix");
     }
-    static List<Object> info(String kind,List<?> fields) { return List.of("kind",kind,"on","HASH","state","ready","prefixes",List.of("hash:"),"fields",fields,"unique",0L); }
+    static List<Object> info(String kind,List<?> fields) { return List.of("kind",kind,"on","HASH","state","ready","prefixes",List.of("hash:"),"fields",fields,"unique",0L,"keys_scanned",0L); }
     static class Schema extends DatadamCommands {
         List<Object> info; List<?> attributes; List<String> create; List<String> commands=new ArrayList<>(); Object reply;
         Schema(){super(null);}
@@ -58,7 +58,7 @@ class HashIndexContractTest {
             commands.add(command);
             if(command.equals("IDX.CREATE") || command.equals("FT.CREATE")){create=Arrays.stream(args).map(Object::toString).toList();return "OK";}
             if(command.equals("IDX.INFO"))return info;
-            if(command.equals("FT.INFO"))return List.of("attributes",attributes);
+            if(command.equals("FT.INFO"))return List.of("attributes",attributes,"num_docs",0L,"num_records",0L);
             return reply;
         }
     }

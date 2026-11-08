@@ -226,6 +226,10 @@ A sintaxe segue os [nomes de consultas do Spring Data](https://docs.spring.io/sp
 
 ## Schema, backfill e ACL
 
+Migrações explícitas usam `IndexMigration` e `DatadamIndexMigrations`: alvo versionado, preparação retomável e validação antes do deploy. A troca de consumidores e o DROP do anterior são etapas separadas; duplicatas UNIQUE exigem resolução e descarte explícitos. Consulte [migrações de índices](docs/index-migrations.md), incluindo a CLI `IndexMigrationApplication` e as credenciais de preparação/retirada.
+
+O item 6.1 acrescenta `DatadamIndexOperations.listIndexes/status/inspect/compare` e `DatadamQueryDiagnostics.explain` para acompanhar backfill, comparar schema com diferenças por campo e explicar o índice escolhido na derivação. A inspeção não executa DDL; FT.INFO tem custo proporcional ao índice, enquanto `status` usa somente IDX.INFO. Consulte [inspeção e diagnóstico](docs/index-diagnostics.md) para API, permissões e exemplo administrativo local.
+
 Criação de índices é uma etapa explícita de migração:
 
 ```java
