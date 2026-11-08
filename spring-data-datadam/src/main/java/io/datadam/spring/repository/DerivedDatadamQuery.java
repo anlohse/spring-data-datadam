@@ -117,48 +117,76 @@ final class DerivedDatadamQuery implements RepositoryQuery {
     }
 
     private Plan select(Sort sort) {
+        return select(candidates(sort));
+    }
+    private Plan select(List<Assessment> candidates) {
+        return candidates.stream().map(Assessment::plan).filter(Objects::nonNull)
+            .sorted(Comparator.comparingInt(Plan::score).reversed().thenComparing(p -> p.index().name()))
+            .findFirst().orElseThrow(() -> invalid("No compatible native index for these predicates and sort; declare a covering IDX index or compatible FT schema; "
+                + candidates.stream().map(c -> c.index().name() + ": " + c.reason()).collect(java.util.stream.Collectors.joining("; "))));
+    }
+    private List<Assessment> candidates(Sort sort) {
         if (sort.stream().anyMatch(o -> o.isIgnoreCase() || o.getNullHandling() != Sort.NullHandling.NATIVE))
             throw invalid("Sort supports native ordering only");
         List<Order> orders = sort.stream().map(o -> new Order(template.indexPath(model, o.getProperty()), o.getDirection())).toList();
-        return indexes.stream().map(index -> candidate(index, orders)).filter(Objects::nonNull)
-            .sorted(Comparator.comparingInt(Plan::score).reversed().thenComparing(p -> p.index().name()))
-            .findFirst().orElseThrow(() -> invalid("No compatible native index for these predicates and sort; declare a covering IDX index or compatible FT schema"));
+        return indexes.stream().map(index -> candidate(index, orders)).toList();
     }
 
-    private Plan candidate(DatadamIndex index, List<Order> orders) {
+    DerivedQueryPlan explain(Sort dynamicSort) {
+        if (dynamicSort.isSorted() && !queryMethod.getParameters().hasSortParameter() && !queryMethod.getParameters().hasPageableParameter())
+            throw invalid("Method has no dynamic Sort or Pageable parameter");
+        var assessments = candidates(combine(tree.getSort(), dynamicSort));
+        var plan = select(assessments);
+        boolean compound = plan.index().kind() == DatadamIndex.Kind.COMPOUND;
+        boolean single = method.getReturnType() == Optional.class || method.getReturnType() == model.type();
+        List<String> commands = !compound ? List.of("FT.SEARCH")
+            : tree.isCountProjection() || tree.isExistsProjection() ? List.of("IDX.COUNT")
+            : single && canLookup(plan.index()) ? List.of("IDX.GET")
+            : queryMethod.isPageQuery() ? List.of("IDX.QUERY", "IDX.COUNT") : List.of("IDX.QUERY");
+        var details = assessments.stream().map(c -> new DerivedQueryPlan.Candidate(c.index().name(), c.index().kind(),
+            c.plan() != null, c.plan() == null ? 0 : c.plan().score(), c.reason())).toList();
+        String reason = assessments.stream().filter(c -> c.plan() == plan).findFirst().orElseThrow().reason()
+            + "; highest compatibility score (" + plan.score() + "), index name breaks ties; declared schema only";
+        return new DerivedQueryPlan(plan.index().name(), plan.index().kind(), commands, plan.sort(), plan.descending(), reason, details);
+    }
+    private Assessment reject(DatadamIndex index, String reason) { return new Assessment(index, null, reason); }
+    private Assessment candidate(DatadamIndex index, List<Order> orders) {
         List<Predicate> predicates = groups.stream().flatMap(Collection::stream).toList();
         for (Predicate predicate : predicates) {
             var field = field(index, predicate.path());
-            if (field == null || predicate.numeric() != (field.type() == IndexField.Type.NUMERIC)) return null;
-            if (!predicate.numeric() && splitTags(index, field)) return null;
-            if (predicate.ignoreCase() && (index.kind() != DatadamIndex.Kind.SEARCH || field.caseSensitive())) return null;
-            if (!predicate.numeric() && !predicate.ignoreCase() && index.kind() == DatadamIndex.Kind.SEARCH && !field.caseSensitive()) return null;
+            if (field == null) return reject(index, "Missing predicate field " + predicate.path());
+            if (predicate.numeric() != (field.type() == IndexField.Type.NUMERIC)) return reject(index, "Incompatible field type for " + predicate.path());
+            if (!predicate.numeric() && splitTags(index, field)) return reject(index, "Split TAG cannot represent scalar field " + predicate.path());
+            if (predicate.ignoreCase() && (index.kind() != DatadamIndex.Kind.SEARCH || field.caseSensitive())) return reject(index, "IgnoreCase requires folded FT TAG " + predicate.path());
+            if (!predicate.numeric() && !predicate.ignoreCase() && index.kind() == DatadamIndex.Kind.SEARCH && !field.caseSensitive()) return reject(index, "Exact scalar predicate requires CASESENSITIVE TAG " + predicate.path());
         }
-        for (Order order : orders) if (field(index, order.path()) == null) return null;
-        if (orders.stream().anyMatch(o -> field(index, o.path()).type() == IndexField.Type.TAG && splitTags(index, field(index, o.path())))) return null;
+        for (Order order : orders) if (field(index, order.path()) == null) return reject(index, "Missing sort field " + order.path());
+        if (orders.stream().anyMatch(o -> field(index, o.path()).type() == IndexField.Type.TAG && splitTags(index, field(index, o.path())))) return reject(index, "Sort requires unsplit TAG");
         if (index.kind() == DatadamIndex.Kind.SEARCH) {
-            if (orders.size() > 1) return null;
+            if (orders.size() > 1) return reject(index, "FT supports one sort field");
             // Sorting strings on a folded TAG changes byte order, even if predicates use other fields.
-            if (orders.stream().anyMatch(o -> field(index, o.path()).type() == IndexField.Type.TAG && !field(index, o.path()).caseSensitive())) return null;
+            if (orders.stream().anyMatch(o -> field(index, o.path()).type() == IndexField.Type.TAG && !field(index, o.path()).caseSensitive())) return reject(index, "TAG sorting requires CASESENSITIVE");
             Sort mappedSort = orders.isEmpty() ? Sort.unsorted() : Sort.by(new Sort.Order(orders.get(0).direction(), field(index, orders.get(0).path()).alias()));
-            return new Plan(index, false, mappedSort, 1);
+            return new Assessment(index, new Plan(index, false, mappedSort, 1), "Compatible FT schema; native predicates and sort");
         }
-        if (groups.size() > 1 || predicates.stream().anyMatch(p -> p.type() == Part.Type.IN || isNegative(p.type()))) return null;
+        if (groups.size() > 1 || predicates.stream().anyMatch(p -> p.type() == Part.Type.IN || isNegative(p.type()))) return reject(index, "OR, IN and negation require FT");
         // A document missing any IDX field is absent. Every field must therefore be required by predicates.
-        if (Arrays.stream(index.fields()).anyMatch(f -> predicates.stream().noneMatch(p -> p.path().equals(f.path())))) return null;
+        if (Arrays.stream(index.fields()).anyMatch(f -> predicates.stream().noneMatch(p -> p.path().equals(f.path())))) return reject(index, "Unconstrained IDX field could lose documents with missing fields");
         Set<String> equalities = new HashSet<>();
         predicates.stream().filter(p -> isEquality(p.type())).forEach(p -> equalities.add(p.path()));
         List<String> varying = Arrays.stream(index.fields()).map(IndexField::path).filter(p -> !equalities.contains(p)).toList();
         List<Order> varyingOrders = orders.stream().filter(o -> !equalities.contains(o.path())).toList();
-        if (varyingOrders.size() > varying.size()) return null;
+        if (varyingOrders.size() > varying.size()) return reject(index, "Sort exceeds varying IDX fields");
         for (int i = 0; i < varyingOrders.size(); i++) {
-            if (!varyingOrders.get(i).path().equals(varying.get(i)) || varyingOrders.get(i).direction() != varyingOrders.get(0).direction()) return null;
+            if (!varyingOrders.get(i).path().equals(varying.get(i)) || varyingOrders.get(i).direction() != varyingOrders.get(0).direction()) return reject(index, "Sort must follow varying IDX tuple fields in one direction");
         }
         int score = 10;
         for (var field : index.fields()) { if (equalities.contains(field.path())) score += 100; else { score += 10; break; } }
         if (canLookup(index)) score += 50;
         boolean descending = !varyingOrders.isEmpty() && varyingOrders.get(0).direction() == Sort.Direction.DESC;
-        return new Plan(index, descending, Sort.unsorted(), score);
+        return new Assessment(index, new Plan(index, descending, Sort.unsorted(), score), canLookup(index)
+            ? "Compatible UNIQUE tuple; full equality permits single-result IDX.GET"
+            : "Covering IDX predicates; equality prefix and native tuple ordering");
     }
 
     private CompoundQuery compound(Plan plan, ParametersParameterAccessor accessor) {
@@ -310,4 +338,5 @@ final class DerivedDatadamQuery implements RepositoryQuery {
     private record Predicate(Part.Type type, String path, int position, boolean numeric, boolean ignoreCase) {}
     private record Order(String path, Sort.Direction direction) {}
     private record Plan(DatadamIndex index, boolean descending, Sort sort, int score) {}
+    private record Assessment(DatadamIndex index, Plan plan, String reason) {}
 }

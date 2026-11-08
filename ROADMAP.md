@@ -2,9 +2,9 @@
 
 Este documento acompanha a evolução da biblioteca, da base funcional atual até uma versão adequada para adoção em outros projetos. A ordem busca entregar utilidade em cada etapa, sem depender de uma reescrita futura.
 
-**Estado atual:** CRUD, consultas e projeções nativas IDX/FT em JSON e HASH, com TTL, IDs, auditoria, callbacks e controle de versão, mais operações JSON com incrementos, arrays e merge. A derivação inclui prefixos String e negação numérica com presença explícita. São 283 testes Java aprovados na última execução confirmada: 132 unitários e 151 de integração com Datadam real no Docker. O servidor com HREPLACE/RETURNJSON passou também por 186 testes nativos e pela integração/persistência C++ na entrega anterior; 5.2 não acrescentou mudanças no C++.
+**Estado atual:** CRUD, consultas e projeções nativas IDX/FT em JSON e HASH, com TTL, IDs, auditoria, callbacks e controle de versão, mais operações JSON com incrementos, arrays e merge. A derivação inclui prefixos String e negação numérica com presença explícita, com explicação do plano; índices têm APIs públicas de inspeção, comparação e migração explícita retomável. São 332 testes Java aprovados na última execução confirmada: 167 unitários e 165 de integração com Datadam real no Docker, incluindo reinício isolado durante backfill. O servidor com HREPLACE/RETURNJSON passou também por 186 testes nativos e pela integração/persistência C++ na entrega 5.1; 5.2 e a etapa 6 não acrescentaram mudanças no C++.
 
-**Próxima entrega:** **6.1 — Inspeção e diagnóstico**. A implementação desse recurso ainda não começou.
+**Próxima entrega:** **7.1 — Diagnóstico da biblioteca**. A implementação desse recurso ainda não começou.
 
 ## Como vamos trabalhar
 
@@ -224,17 +224,21 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 ### 6.1. Inspeção e diagnóstico
 
-- [ ] Expor APIs públicas para listar, inspecionar e acompanhar índices e backfills.
-- [ ] Exibir diferenças entre schema esperado e existente de forma legível.
-- [ ] Disponibilizar o plano escolhido para uma consulta derivada: índice, família IDX/FT e motivo da escolha.
+- [x] Expor APIs públicas para listar, inspecionar e acompanhar índices e backfills.
+- [x] Exibir diferenças entre schema esperado e existente de forma legível.
+- [x] Disponibilizar o plano escolhido para uma consulta derivada: índice, família IDX/FT e motivo da escolha.
+
+**Entregue em 2026-11-07:** listagem, status leve por IDX.INFO, inspeção tipada JSON/HASH/FT e comparação sem DDL com diferenças por propriedade. `ensureIndexes` reutiliza o comparador; timeout de backfill inclui progresso observado. `DatadamQueryDiagnostics` explica índice, família, comandos, ordenação e candidatos com o mesmo planejador da execução, sem comandos ou valores de predicados. Inclui CLI administrativa e usuário observador sem DDL/leitura de documentos. São 20 novos testes unitários e 6 de integração; suíte completa aprovada com 309 testes (152 unitários e 157 de integração no Docker). Detalhes e custos de FT.INFO em [docs/index-diagnostics.md](docs/index-diagnostics.md). Nenhuma mudança C++ necessária.
 
 ### 6.2. Migrações explícitas
 
-- [ ] Definir um fluxo de migração com nomes versionados, criação do novo índice e validação do backfill antes da mudança de uso.
-- [ ] Tratar duplicatas em UNIQUE como erro de dados que exige resolução explícita.
-- [ ] Separar a troca de uso e a eventual remoção do índice anterior; não prometer aliases ou troca atômica sem suporte do Datadam.
-- [ ] Testar interrupção/reinício do backfill e recuperação de uma migração incompleta.
-- [ ] Documentar credenciais e permissões específicas de migração.
+- [x] Definir um fluxo de migração com nomes versionados, criação do novo índice e validação do backfill antes da mudança de uso.
+- [x] Tratar duplicatas em UNIQUE como erro de dados que exige resolução explícita.
+- [x] Separar a troca de uso e a eventual remoção do índice anterior; não prometer aliases ou troca atômica sem suporte do Datadam.
+- [x] Testar interrupção/reinício do backfill e recuperação de uma migração incompleta.
+- [x] Documentar credenciais e permissões específicas de migração.
+
+**Entregue em 2026-11-07:** `IndexMigration` e `DatadamIndexMigrations` preparam um alvo `:vN`, validam escopo/schema/readiness e retomam alvos compatíveis após falha ou timeout. UNIQUE com falha exige resolução explícita dos dados e descarte separado do alvo FAILED; a origem é mantida. Troca de consumidores é um deploy explícito, com modelos de preparação separados; retirada usa uma operação/credencial própria e nunca remove documentos. Inclui CLI e 15 testes unitários novos mais 8 de integração, entre eles interrupção real do backfill em contêiner descartável com 15.000 documentos, retomada por outro cliente e validação de totais. Suíte completa aprovada: 332 testes. Limites de concorrência administrativa, proveniência do backfill e efeito imediato de UNIQUE sobre escritas estão em [docs/index-migrations.md](docs/index-migrations.md).
 
 **Concluído quando:** for possível preparar e validar um schema novo sem remover automaticamente os índices que a aplicação ainda utiliza.
 
@@ -319,5 +323,7 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 | 2.1 — Optimistic locking com @Version | Concluída | CAS nativo, concorrência, exclusão versionada e integração JSON/HASH |
 | 5.1 — Projeções | Concluída | Records/interfaces, seleção nativa IDX/FT e JSON/HASH; 262 testes Java na entrega |
 | 5.2 — Ampliação da derivação | Concluída | Prefixos String e negação numérica com presença; matriz e exemplos; 283 testes Java aprovados (132 unitários e 151 de integração) |
+| 6.1 — Inspeção e diagnóstico | Concluída | Schema/status tipados, comparação sem DDL e planos derivados; 309 testes Java aprovados (152 unitários e 157 de integração) |
+| 6.2 — Migrações explícitas | Concluída | Preparação versionada retomável, validação, retirada separada e recuperação UNIQUE; 332 testes Java aprovados (167 unitários e 165 de integração) |
 
 Ao terminar cada entrega, acrescentaremos aqui o resultado, os testes executados e eventuais decisões que alterem os próximos passos.
