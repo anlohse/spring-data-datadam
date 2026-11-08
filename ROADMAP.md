@@ -2,9 +2,11 @@
 
 Este documento acompanha a evolução da biblioteca, da base funcional atual até uma versão adequada para adoção em outros projetos. A ordem busca entregar utilidade em cada etapa, sem depender de uma reescrita futura.
 
-**Estado atual:** CRUD, consultas e projeções nativas IDX/FT em JSON e HASH, com TTL, IDs, auditoria, callbacks e controle de versão, mais operações JSON com incrementos, arrays e merge. Há diagnóstico de consultas/pool e migração explícita de índices. A matriz valida Java 17/21/25 com Boot 3.5.16 e Data Commons 3.5.13; imagens são identificadas por revisão/digests e há resultados de desempenho publicados. São 376 testes Java aprovados na última execução completa: 187 unitários e 189 de integração com Datadam real no Docker. A matriz reexecuta também os 187 unitários em cada JVM isolada (561 execuções adicionais). O servidor com HREPLACE/RETURNJSON passou por 186 testes nativos e integração/persistência C++ na entrega 5.1; as entregas posteriores até 7.3 não alteraram o código C++.
+**Estado atual:** CRUD, consultas e projeções nativas IDX/FT em JSON e HASH, com TTL, IDs, auditoria, callbacks e controle de versão, mais operações JSON com incrementos, arrays e merge. Há diagnóstico de consultas/pool e migração explícita de índices. A matriz valida Java 17/21/25 com Boot 3.5.16 e Data Commons 3.5.13; imagens são identificadas por revisão/digests e há resultados de desempenho publicados. São 394 testes Java aprovados: 187 unitários e 207 de integração com Datadam real no Docker, incluindo 18 verificações novas dos exemplos. A matriz reexecuta também os 187 unitários em cada JVM isolada (561 execuções adicionais). O servidor com HREPLACE/RETURNJSON passou por 186 testes nativos e integração/persistência C++ na entrega 5.1; as entregas posteriores até 7.3 não alteraram o código C++.
 
 **Próxima entrega:** **8.1 — Projeto pronto para consumo**. A implementação dessa entrega ainda não começou.
+
+**Trilha adicional de exemplos:** concluídos os 16 subtópicos de **0.1 até 7.3.1**, com modelos próprios, roteiros CLI/HTTP e validação no Docker. Consulte [os exemplos executáveis](docs/demo-examples.md) e [a evidência da execução](docs/validation/2026-11-08-demo-examples.json). O próximo exemplo, **8.1.1**, depende da entrega 8.1; os exemplos das etapas 8–10 continuam pendentes.
 
 ## Como vamos trabalhar
 
@@ -14,6 +16,16 @@ Este documento acompanha a evolução da biblioteca, da base funcional atual at�
 - Recursos já existentes não precisam ser refeitos; serão ampliados mantendo os contratos atuais.
 - Mudanças incompatíveis precisam de uma orientação de migração. Nenhuma etapa autoriza apagar documentos, remover índices em uso ou publicar artefatos remotamente de forma automática.
 - Investigações devem resultar em uma decisão documentada: implementar, reduzir o escopo ou adiar com uma razão concreta. Não vamos marcar uma funcionalidade como entregue só porque sua viabilidade foi investigada.
+
+## Como vamos ampliar os exemplos do demo
+
+- Cada entrega recebe um subtópico próprio de exemplo, com um domínio e um roteiro de uso. Podemos trabalhar nele pelo número, como **1.1.1** ou **5.2.1**.
+- Os exemplos existentes são a base de cada subtópico. Seus arquivos e rotas continuam disponíveis; os checks novos indicam cenários adicionais ainda pendentes.
+- Novos domínios serão organizados gradualmente em pacotes de exemplos, como catálogo, reservas, estoque, preferências, carrinho, livros e dispositivos. Entidades, repositórios, DTOs, callbacks e serviços serão separados conforme a necessidade do cenário.
+- Para concluir um exemplo, entregar instruções de execução, entradas e saídas esperadas, um caminho de sucesso, um limite ou falha relevante e validação de integração do roteiro principal. HTTP, CLI ou script serão escolhidos conforme o recurso.
+- Incluir a preparação do schema, os prefixos e as permissões locais necessárias. A aplicação continua sem DDL; os roteiros criam e limpam apenas seus próprios dados.
+- Reutilizar domínios quando isso mostrar uma evolução útil: `Product` no catálogo, projeções e migrações; `DeviceState` no HASH e nas consultas. Os domínios novos não recebem implicitamente uma transação conjunta.
+- Os exemplos de transações e reatividade dependem das decisões e implementações das etapas 9 e 10. Seus checks permanecem pendentes enquanto o suporte correspondente não existir.
 
 ## Visão da evolução
 
@@ -53,6 +65,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Limite original desta base:** TTL estava disponível apenas por comando. A integração declarativa foi entregue no item 1.1 abaixo. Publicação Maven remota ainda não foi feita.
 
+### 0.1. Exemplo no demo: catálogo de produtos
+
+**Base existente:** `Customer`, `CustomerRepository`, `/customers` e os scripts de dados de exemplo.
+
+- [x] Criar `Product` e seu repositório/controller, com SKU UNIQUE, índice composto por categoria/preço e busca FT por TAG/NUMERIC.
+- [x] Adicionar roteiro de cadastro, consulta por SKU, faixa de preço, ordenação/paginação e recusa de SKU duplicado, com documentação e validação de integração.
+
 ## 1. Ciclo das entidades
 
 ### 1.1. TTL de entidades — concluído
@@ -72,6 +91,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Decisão de atomicidade:** os testes comprovam isolamento da gravação/TTL e preservação do documento e da data absoluta de expiração em recusas por UNIQUE, ACL e valores inválidos. O servidor não oferece rollback geral de scripts, e uma escrita UNIQUE pode forçar commit antecipado. A garantia de documento + TTL em uma única gravação durável após crash não está incluída nesta entrega; exigiria uma evolução explícita do servidor C++. Esse limite está documentado e não é considerado resolvido pela biblioteca.
 
+#### 1.1.1. Exemplo no demo: reservas temporárias
+
+**Base existente:** `TemporaryNote` e `/temporary-notes`.
+
+- [x] Criar `TemporaryReservation` para demonstrar TTL padrão, override por entidade e remoção explícita da expiração com `persist`.
+- [x] Adicionar roteiro que observe TTL, consulte a reserva antes/depois da expiração e confira sua saída de IDX/FT; explicar que a expiração não implementa uma transação de reserva de estoque.
+
 ### 1.2. Geração de IDs e identificação de entidades novas — concluído
 
 - [x] Definir quando uma entidade é considerada nova, preservando o suporte a IDs atribuídos pela aplicação.
@@ -88,6 +114,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Decisões de contrato:** IDs atribuídos em entidades comuns mantêm save como criação/substituição. `Persistable.isNew() == true` solicita criação exclusiva. A detecção não consulta o banco, e flags de Persistable não são alteradas automaticamente. Falha de transporte pode deixar resultado incerto; não há repetição automática. `saveAll` permanece sequencial com possibilidade de êxito parcial, conforme documentado.
 
+#### 1.2.1. Exemplo no demo: abertura de chamados
+
+**Base existente:** geração de IDs no cadastro de `TemporaryNote` e suporte a estratégias próprias na biblioteca.
+
+- [x] Criar `SupportTicket` com geração de ID e um cenário separado de ID atribuído externamente; demonstrar uma estratégia nomeada de geração sem substituir o padrão dos demais exemplos.
+- [x] Adicionar roteiro que use o ID retornado por `save` para consultar/atualizar, preserve IDs existentes e demonstre recusa de colisão em criação exclusiva.
+
 ### 1.3. Auditoria e callbacks — concluído
 
 - [x] Introduzir callbacks de persistência e leitura com ordem de execução documentada.
@@ -103,6 +136,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 **Validação:** 18 novos testes unitários e 9 novos testes de integração; 108 testes aprovados no total. Cobertura de relógio/autores controlados, criação/alteração, ordem, normalização, proteção de identidade e auditoria, recusas, UNIQUE, TTL, materialização por CRUD/IDX/FT e API HTTP. O exemplo `/audited-notes` também foi conferido por POST/PUT na aplicação local.
 
 **Decisões de contrato:** auditoria por anotações na raiz da entidade; metadados embutidos e interface Auditable ficam fora deste escopo. A biblioteca preserva os dados de criação recebidos e não busca o estado anterior para autenticar esses valores; o exemplo HTTP usa DTOs de negócio e carrega a entidade antes de atualizar. Falha AfterSave é distinguida por AfterSaveCallbackException porque a escrita já foi confirmada. Efeitos executados por callbacks e alterações diretas em memória não recebem rollback automático. O estado dos itens anteriores e seus limites de transporte/durabilidade são mantidos.
+
+#### 1.3.1. Exemplo no demo: publicação de artigos
+
+**Base existente:** `AuditedNote`, `DemoAuditingConfiguration`, callbacks e `/audited-notes`.
+
+- [x] Criar `Article` com datas/autores de criação e alteração, callback de normalização e uma validação de conteúdo que possa recusar a gravação.
+- [x] Adicionar roteiro de criação/edição que preserve a auditoria de criação e mostre a ordem dos callbacks, a recusa antes da escrita e o tratamento de falha após confirmação.
 
 ## 2. Concorrência e controle de versão
 
@@ -125,6 +165,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Decisões de contrato:** a versão determina o estado novo mesmo com ID atribuído; Persistable deve concordar. deleteById lê e exclui com a versão corrente; para exigir a versão vista pelo cliente, use delete(entity). Comandos diretos não recebem incremento/checagem automática, documentos sem versão exigem migração explícita e reutilizar o mesmo ID após exclusão/expiração pode produzir ABA. Os limites anteriores de transporte incerto, lotes sequenciais e durabilidade documento/TTL permanecem documentados.
 
+#### 2.1.1. Exemplo no demo: atualização concorrente de estoque
+
+**Base existente:** `VersionedNote`, `/versioned-notes` e respostas HTTP de conflito.
+
+- [x] Criar `StockItem` com `@Version` e um fluxo de alteração de quantidade que receba a versão observada pelo consumidor.
+- [x] Adicionar roteiro com dois consumidores lendo a mesma versão, uma atualização aceita e outra recusada, seguido de nova leitura e reconciliação explícita; incluir exclusão com versão obsoleta.
+
 ## 3. Atualizações parciais JSON
 
 ### 3.1. API de caminhos e alterações simples — concluído
@@ -141,6 +188,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Decisões de contrato:** alterações parciais estão disponíveis para documentos simples; entidades com @Version, auditoria ou callbacks de gravação aplicáveis são recusadas antes do transporte, com orientação para usar save. O suporte parcial a essas políticas exige um protocolo adicional e não foi entregue neste item. Leituras podem usar seletores múltiplos, mas escritas aceitam somente membros/índices singulares, preservam a expiração sem reiniciar TTL e não criam chaves ausentes. O tipo declarado valida os valores da operação, sem validação integral do schema da entidade. Cada alteração é um comando; sequências não são transações e o servidor ainda reprocessa o documento inteiro internamente.
 
+#### 3.1.1. Exemplo no demo: preferências do usuário
+
+**Base existente:** `CustomerJsonController` e operações em `/customers/{id}/json`.
+
+- [x] Criar `UserPreferences` com objetos aninhados e demonstrar leitura, definição e remoção por `JsonPath<T>`, incluindo caminhos ausentes, JSON null e arrays.
+- [x] Adicionar roteiro que preserve campos não alterados e TTL e mostre a recusa de alterações parciais quando a entidade exige versão, auditoria ou callbacks de gravação.
+
 ### 3.2. Incrementos, arrays e merge — concluído
 
 - [x] Expor incrementos numéricos, operações de arrays e merge de objetos com contratos de retorno claros.
@@ -155,6 +209,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 **Validação:** 10 novos testes unitários e 15 novos testes de integração; 186 testes aprovados no total. Inclui incrementos/appends/merges concorrentes por pools independentes, UNIQUE em número, array, posição de array e membro de merge, preservação de TTL absoluto e IDX/FT, tipos, null, limites de índices, overflow, erros numéricos, expiração, ACL e HTTP. O exemplo local foi conferido com incremento de idade, append/pop de tags e merge que remove um membro null preservando os demais.
 
 **Decisões de contrato:** mantidas as proteções de 3.1: escritas singulares não raiz, sem alterar ID/TTL e sem contornar versão, auditoria ou callbacks. Incrementos retornam Number porque overflow int64 pode promover a float; pop distingue nil RESP de JSON null. Merge aceita patch de objeto, combina Maps aninhados e preserva nulls de remoção mesmo com mapper NON_NULL; OK não prova que houve matches. Cada alteração é um comando atômico no servidor, mas uma sequência não é transação e sucessos anteriores permanecem após falha. O servidor continua reprocessando o documento inteiro, e falhas de transporte/conversão após envio não autorizam repetição automática.
+
+#### 3.2.1. Exemplo no demo: carrinho de compras
+
+**Base existente:** operações numéricas, arrays e merge já demonstradas sobre `Customer`.
+
+- [x] Criar `ShoppingCart`, sem políticas incompatíveis com a API parcial, com itens em array, quantidades numéricas e opções de entrega em objeto; expor incrementos, append/insert/pop/trim e merge.
+- [x] Adicionar roteiro que diferencie null removido de ausência, use null para remover um membro via merge e mostre que uma sequência com falha pode manter alterações anteriores.
 
 ## 4. Persistência em HASH
 
@@ -174,6 +235,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Decisões de contrato:** prefixos exclusivos, nenhuma conversão automática JSON→HASH, propriedades Object na raiz recusadas por ambiguidade e estruturas aninhadas não achatadas. Mantidos os limites de transporte, lotes sequenciais, ABA e durabilidade conjunta de conteúdo/TTL após crash com UNIQUE. Schema e consultas HASH na biblioteca são recusados explicitamente até 4.2; índices HASH nos testes são fixtures administrativas, sem antecipar essa etapa.
 
+#### 4.1.1. Exemplo no demo: estado de dispositivos
+
+**Base existente:** `HashNote`, callbacks e `/hash-notes`.
+
+- [x] Criar `DeviceState` em HASH, com escalares, lista de capacidades e objeto de configuração armazenados em campos próprios; demonstrar substituição completa e remoção de campos null.
+- [x] Adicionar roteiro de criação/leitura/atualização/exclusão, preservação de TTL e controle de versão, com um objeto JSON de outro domínio coexistindo em prefixo separado.
+
 ### 4.2. Índices e consultas sobre HASH — concluído
 
 - [x] Gerar e validar definições `ON HASH` e seus nomes/aliases de campos.
@@ -188,6 +256,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 **Validação:** 9 novos testes unitários e 16 novos testes de integração; 234 testes Java aprovados. Cobertura de DDL e drift sem remoção de índices, aliases/nome Jackson, faixa/ordem/totais, Page/Slice/Top, count/exists, IDX/FT/derivação, separadores/caixa, listas JSON dentro do HASH, campos ausentes/NUMERIC inválido, atualização/remoção de campos, UNIQUE, TTL/expiração, callbacks e ACL de conteúdo/total. O leitor de teste não possui HGETALL e ainda assim recebe entidades completas diretamente das consultas. As rotas IDX/derivada/FT/labels foram conferidas na aplicação local.
 
 **Decisões de contrato:** IDX HASH não aceita AS, então alias deve ser igual ao campo armazenado; FT aceita aliases. FT HASH divide TAG por vírgula por padrão; IDX sem separador mantém igualdade do campo completo. Derivação recusa TAGs divididos em tokens para igualdade/ordenação escalar, em vez de alterar a semântica ou pós-filtrar páginas; pode selecionar um IDX sem separador ou um plano FT numérico compatível. Objetos/coleções HASH não são achatados nem indexados como arrays JSON automaticamente. O patch C++ 4.1 permanece necessário para a escrita, sem novas alterações de servidor nesta etapa; projeções parciais ficam para 5.1.
+
+#### 4.2.1. Exemplo no demo: busca de dispositivos por região e atividade
+
+**Base existente:** `HashCustomer`, `/hash-customers` e consultas IDX/FT sobre HASH.
+
+- [x] Ampliar `DeviceState` com região, instante de atividade em campo numérico explícito e labels; demonstrar IDX composto, FT com alias e separador TAG configurado.
+- [x] Adicionar roteiro de faixas, páginas e totais e comparar busca por token com igualdade do campo inteiro; mostrar a recusa de derivação escalar sobre TAG dividido.
 
 ## 5. Consultas mais completas
 
@@ -206,6 +281,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Decisões de contrato:** suporte inicial a records e interfaces fechadas com getters, propriedades raiz com tipos anuláveis e retornos List/Page em consultas anotadas ou programáticas. Recusados alvos de entidade, primitivos/Object/Optional na raiz, SpEL/default methods/setters, fontes aninhadas, tipos incompatíveis e projeções dinâmicas/derivadas. Projeções não executam callbacks de entidade nem preenchem auditoria/versão; ausência e null viram null no DTO/getter, sem defaults ou descarte da linha. Campos de tipos complexos são selecionados inteiros. Mantidos os limites nativos de paginação/contagem e a separação entre projeção e entidade completa.
 
+#### 5.1.1. Exemplo no demo: visões resumidas de produtos e dispositivos
+
+**Base existente:** `CustomerSummary`, `CustomerView` e `/customer-projections`.
+
+- [x] Criar `ProductSummary` em record e uma interface fechada de resumo de `DeviceState`, com mapeamento de nome por `@ProjectionProperty` e propriedades anuláveis.
+- [x] Adicionar roteiro de projeções IDX/FT em JSON/HASH que confira campos retornados, aliases, ausência/null, paginação e totais, mantendo o retorno distinto da entidade completa.
+
 ### 5.2. Ampliação da derivação
 
 - [x] Elaborar uma matriz dos operadores Spring Data e da sua viabilidade em IDX/FT.
@@ -220,6 +302,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Limite conhecido:** não há compromisso de suportar todos os operadores do Spring Data. Null, campos ausentes e buscas textuais dependem das capacidades reais do servidor.
 
+#### 5.2.1. Exemplo no demo: catálogo de livros
+
+**Base existente:** `DerivedOperatorsController`, prefixos e negação numérica em `CustomerRepository`/`HashCustomerRepository`.
+
+- [x] Criar `Book` e métodos derivados para prefixo do título, faixas de páginas, `In`, `Not`/`NotIn` numéricos e combinações `And`/`Or`, com índices compatíveis.
+- [x] Adicionar roteiro com caracteres literais no prefixo, IgnoreCase ASCII, campos ausentes e resultados paginados; apresentar os operadores recusados e seus motivos.
+
 ## 6. Evolução de índices
 
 ### 6.1. Inspeção e diagnóstico
@@ -229,6 +318,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 - [x] Disponibilizar o plano escolhido para uma consulta derivada: índice, família IDX/FT e motivo da escolha.
 
 **Entregue em 2026-11-07:** listagem, status leve por IDX.INFO, inspeção tipada JSON/HASH/FT e comparação sem DDL com diferenças por propriedade. `ensureIndexes` reutiliza o comparador; timeout de backfill inclui progresso observado. `DatadamQueryDiagnostics` explica índice, família, comandos, ordenação e candidatos com o mesmo planejador da execução, sem comandos ou valores de predicados. Inclui CLI administrativa e usuário observador sem DDL/leitura de documentos. São 20 novos testes unitários e 6 de integração; suíte completa aprovada com 309 testes (152 unitários e 157 de integração no Docker). Detalhes e custos de FT.INFO em [docs/index-diagnostics.md](docs/index-diagnostics.md). Nenhuma mudança C++ necessária.
+
+#### 6.1.1. Exemplo no demo: diagnóstico das buscas do catálogo
+
+**Base existente:** `IndexDiagnosticsApplication` e `DatadamQueryDiagnostics`.
+
+- [x] Adicionar comandos de diagnóstico para `Product`, `Book` e `DeviceState`, com listagem/status, comparação de schema e explicação dos índices candidatos de métodos derivados.
+- [x] Criar roteiro com schema correspondente e divergente, ordenação incompatível e usuário observador; exibir diferenças e motivos sem enviar valores de consultas ou executar DDL.
 
 ### 6.2. Migrações explícitas
 
@@ -242,6 +338,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Concluído quando:** for possível preparar e validar um schema novo sem remover automaticamente os índices que a aplicação ainda utiliza.
 
+#### 6.2.1. Exemplo no demo: evolução dos índices do catálogo
+
+**Base existente:** `CustomerSearchV2` e ações de `IndexMigrationApplication`.
+
+- [x] Criar um modelo de preparação `ProductSchemaV2`, separado dos repositórios ativos, e um roteiro de prepare/validate com nomes versionados e consultas de validação de negócio.
+- [x] Demonstrar deploy/troca de consumidores e retirada como etapas separadas; incluir falha UNIQUE, correção explícita dos dados e retomada, usando somente índices/dados próprios do exemplo.
+
 ## 7. Operação, segurança e compatibilidade
 
 ### 7.1. Diagnóstico da biblioteca
@@ -252,6 +355,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Entregue em 2026-11-07:** limites separados de conexão/leitura/espera com fallback compatível a `datadam.timeout`, tamanhos e manutenção do pool com validação antecipada e metadados Spring. Health PING e métricas Micrometer são opcionais, desativados por padrão na biblioteca e habilitados no demo. Timers/gauges/counters usam operações e resultados enumerados, sem argumentos, credenciais, chaves ou mensagens de exceção; health e validação de conexões não registram falhas detalhadas. Inclui testes sem dependências opcionais, sanitização, permissões de autenticação, esgotamento controlado do pool e HTTP Actuator. São 20 novos testes unitários e 6 de integração; suíte completa aprovada com 358 testes (187 unitários e 171 de integração). Configuração, custos e limites em [docs/library-diagnostics.md](docs/library-diagnostics.md).
 
+#### 7.1.1. Exemplo no demo: acompanhamento de uma importação
+
+**Base existente:** Actuator health/metrics habilitados no demo e `LibraryDiagnosticsIntegrationIT`.
+
+- [x] Criar `ImportJob` e um serviço de importação de quantidade limitada de produtos, com estados e progresso consultáveis.
+- [x] Adicionar roteiro que acompanhe health e métricas durante leituras/gravações e uma falha controlada; demonstrar configuração do pool e telemetria sem payloads ou credenciais.
+
 ### 7.2. Testes de falhas e segurança
 
 - [x] Automatizar cenários de reinício, timeout, perda de conexão e saturação do pool.
@@ -260,6 +370,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 - [x] Documentar resultados incertos após falha de transporte; não repetir gravações automaticamente quando não for possível saber se foram aplicadas.
 
 **Entregue em 2026-11-07:** 15 testes de integração adicionais com contêineres isolados: seis de transporte (proxy RESP com perda antes/depois da escrita, timeout, confirmação perdida com @Version, reinício e fila/esgotamento), quatro de TLS (cadeia confiável, CA desconhecida, identidade incorreta e validade expirada) e cinco de ACL para JSON/HASH, consultas e metadados, administração e EVAL. O pool automático habilita identificação do endpoint TLS; cliente e servidor do teste TLS ficam no Docker para preservar a cadeia original mesmo em hosts com inspeção TLS. As gravações não são repetidas automaticamente; os testes demonstram a ambiguidade entre escrita não enviada e escrita aplicada sem confirmação. Suíte completa aprovada: 373 testes (187 unitários e 186 de integração). Reprodução, mudança TLS e reconciliação em [docs/failures-and-security.md](docs/failures-and-security.md).
+
+#### 7.2.1. Exemplo no demo: falha de confirmação e acesso restrito
+
+**Base existente:** `TransportFailuresIT`, `TlsSecurityIT`, `AclSecurityIT` e os contêineres descartáveis de testes.
+
+- [x] Criar um runner/roteiro opt-in que use uma atualização de `StockItem` para mostrar resposta perdida, estado persistido, versão local obsoleta e reconciliação explícita.
+- [x] Adicionar cenários executáveis de reader/writer/schema e conexão TLS aceita/recusada em ambiente isolado, com instruções e saídas esperadas; manter a injeção de falhas fora das rotas normais da aplicação.
 
 ### 7.3. Matriz de compatibilidade e desempenho
 
@@ -272,6 +389,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Concluído quando:** as garantias de conexão e segurança forem testadas automaticamente e houver uma matriz de compatibilidade verificável.
 
+#### 7.3.1. Exemplo no demo: comparação de formas de consulta
+
+**Base existente:** `NativePerformanceBenchmark`, `run-performance.ps1` e os CSVs publicados.
+
+- [x] Adicionar um roteiro de catálogo/dispositivos que compare conteúdo completo, projeção, Page, Slice/lista limitada e contagem, com volume de dados configurável.
+- [x] Documentar comandos e trabalho realizado em cada alternativa e permitir reproduzir a medição com as imagens fixadas; apresentar ambiente, volume e limites de interpretação dos números.
+
 ## 8. Distribuição e primeira versão estável
 
 ### 8.1. Projeto pronto para consumo
@@ -281,6 +405,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 - [ ] Preparar artefatos de fontes e Javadoc, licença e metadados de distribuição.
 - [ ] Validar a dependência em uma aplicação consumidora independente do reactor Maven deste projeto.
 
+#### 8.1.1. Exemplo de consumo: aplicação independente
+
+**Dependência:** conclusão do contrato de distribuição do item 8.1.
+
+- [ ] Criar `examples/consumer-boot` com POM próprio, fora do reactor principal, consumindo o artefato versionado e demonstrando um repositório de `Book` ou `Product`.
+- [ ] Adicionar instruções para instalar a biblioteca localmente, configurar a conexão, preparar índices com credenciais separadas e executar um fluxo CRUD/consulta sem depender das classes do demo principal.
+
 ### 8.2. Integração contínua e release
 
 - [ ] Automatizar build, testes unitários e integração com Datadam real no Docker.
@@ -289,6 +420,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 - [ ] Publicar a primeira versão somente após autorização explícita para o destino escolhido.
 
 **Concluído quando:** outro projeto puder consumir um artefato versionado com documentação, testes reproduzíveis e instruções de atualização.
+
+#### 8.2.1. Exemplo de validação de uma versão
+
+**Dependência:** aplicação consumidora independente do item 8.1.1.
+
+- [ ] Adicionar um roteiro de smoke test do consumidor com a versão candidata: startup, health, cadastro, leitura e consulta indexada, usando dados próprios.
+- [ ] Documentar execução local e na CI e como conferir a versão do artefato; manter publicação remota como uma ação separada conforme o contrato do item 8.2.
 
 ## 9. Transações Spring — evolução posterior
 
@@ -300,6 +438,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Concluído quando:** a decisão estiver registrada e qualquer suporte oferecido tiver garantias comprovadas, sem sugerir equivalência automática com transações de um banco relacional.
 
+### 9.1. Exemplo no demo: operação envolvendo pedido e estoque
+
+**Dependência:** decisão de viabilidade e contrato efetivamente entregue na etapa 9.
+
+- [ ] Após a decisão, criar um roteiro com `PurchaseOrder` e `StockItem` que mostre as garantias reais em sucesso, concorrência e falha, distinguindo atomicidade, isolamento e rollback.
+- [ ] Se houver integração transacional Spring entregue, demonstrar seu uso com os limites documentados; caso contrário, documentar o cenário e o motivo de adiamento do exemplo transacional.
+
 ## 10. Repositórios reativos — evolução posterior
 
 - [ ] Selecionar e validar um transporte realmente não bloqueante que preserve os formatos de resposta usados pelo Datadam.
@@ -309,6 +454,13 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 - [ ] Adicionar aplicação/exemplos reativos e documentar a compatibilidade com a API imperativa.
 
 **Concluído quando:** a API reativa tiver transporte não bloqueante e comportamento testado. Encapsular chamadas Jedis bloqueantes em Mono/Flux não será considerado conclusão desta etapa.
+
+### 10.1. Exemplo no demo: leituras reativas de telemetria
+
+**Dependência:** transporte não bloqueante e repositórios reativos entregues na etapa 10.
+
+- [ ] Criar `TelemetryReading` e um fluxo reativo de persistência/consulta com controle de demanda, conforme a API que for entregue.
+- [ ] Adicionar roteiro e validação de cancelamento, erros e demanda limitada, verificando a ausência de bloqueio nas threads do fluxo; manter este exemplo pendente até existir o transporte necessário.
 
 ## Fora do compromisso atual
 

@@ -4,6 +4,8 @@ Biblioteca Java com repositórios Spring Data que persistem entidades como docum
 
 O [roadmap de evolução](ROADMAP.md) acompanha as entregas concluídas, as próximas etapas e os critérios de conclusão de cada recurso.
 
+Os [exemplos executáveis das etapas 0 a 7](docs/demo-examples.md) ampliam o demo com produtos, reservas, chamados, artigos, estoque, preferências, carrinho, livros, dispositivos e importações. Após iniciar o ambiente, execute `.\scripts\run-demo-examples.ps1` ou selecione um item, por exemplo `.\scripts\run-demo-examples.ps1 -Scenario 3.2.1`. Cada roteiro verifica seus resultados e limpa seus próprios dados; há APIs em `/examples/products`, `/examples/stock` e `/examples/imports`.
+
 ## Executar no Windows
 
 Runtimes validados: Java 17, 21 e 25, com Spring Boot 3.5.16 e Spring Data Commons 3.5.13. O build registrado usa JDK 25.0.2/Maven 3.8.4, com release 17, e o Datadam roda em Docker Linux x86_64. Consulte a [matriz de compatibilidade e desempenho](docs/compatibility-and-performance.md) para imagens fixadas, escopo dos testes e medições publicadas.

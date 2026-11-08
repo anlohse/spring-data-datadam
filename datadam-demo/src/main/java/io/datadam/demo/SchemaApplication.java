@@ -23,7 +23,8 @@ public final class SchemaApplication {
             new DatadamIndexOperations(new DatadamCommands(pool)).ensureIndexes(AuditedNote.class, Duration.ofSeconds(30));
             new DatadamIndexOperations(new DatadamCommands(pool)).ensureIndexes(VersionedNote.class, Duration.ofSeconds(30));
             new DatadamIndexOperations(new DatadamCommands(pool)).ensureIndexes(HashCustomer.class, Duration.ofSeconds(30));
-            System.out.println("Datadam schema ready: JSON entities and HASH customer indexes");
+            io.datadam.demo.examples.ExampleSchemas.prepare(new DatadamIndexOperations(new DatadamCommands(pool)));
+            System.out.println("Datadam schema ready: original demo and roadmap examples (JSON/HASH)");
         }
     }
 }

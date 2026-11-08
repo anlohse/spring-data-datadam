@@ -9,6 +9,7 @@ import io.datadam.spring.*;
 import io.datadam.spring.annotation.*;
 import io.datadam.spring.config.*;
 import io.datadam.spring.diagnostics.CommandObservation;
+import io.datadam.demo.examples.inventory.StockItem;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -43,18 +44,18 @@ class TransportFailuresIT {
     }
     @Test void lostVersionedSaveAcknowledgementLeavesClientVersionUnchangedAndDetectsStaleRetry() throws Exception {
         String id = UUID.randomUUID().toString();
-        var model = new EntityModel<>(Versioned.class); var mapper = new ObjectMapper();
+        var model = new EntityModel<>(StockItem.class); var mapper = new ObjectMapper();
         try (var direct = server.pool(); var proxy = new RespFaultProxy(server.port, "EVAL", RespFaultProxy.Fault.DROP_REPLY)) {
             var backend = new DatadamTemplate(new DatadamCommands(direct), mapper);
-            var original = backend.save(new Versioned(id, null, "before"), model);
+            var original = backend.save(new StockItem(id, "fault-demo-" + id, 10, null), model);
             var properties = server.properties(); properties.setPort(proxy.port()); properties.setValidateConnection(false);
             try (var pool = new DatadamAutoConfiguration().datadamPool(properties)) {
                 var client = new DatadamTemplate(new DatadamCommands(pool), mapper);
-                var update = new Versioned(id, original.version(), "after");
+                var update = new StockItem(id, original.sku(), 9, original.version());
                 assertThatThrownBy(() -> client.save(update, model)).isInstanceOf(DataAccessResourceFailureException.class);
                 assertThat(update.version()).isEqualTo(original.version()); assertThat(proxy.forwarded.get()).isEqualTo(1);
                 var persisted = backend.findById(id, model).orElseThrow();
-                assertThat(persisted.version()).isEqualTo(original.version() + 1); assertThat(persisted.value()).isEqualTo("after");
+                assertThat(persisted.version()).isEqualTo(original.version() + 1); assertThat(persisted.quantity()).isEqualTo(9);
                 assertThatThrownBy(() -> client.save(update, model)).isInstanceOf(OptimisticLockingFailureException.class);
                 assertThat(backend.findById(id, model)).contains(persisted);
             }
@@ -91,6 +92,4 @@ class TransportFailuresIT {
             assertThat(commands.execute("PING")).isEqualTo("PONG");
         } finally { executor.shutdownNow(); }
     }
-    @DatadamDocument(prefix = "versioned:")
-    record Versioned(@Id String id, @Version Long version, String value) {}
 }

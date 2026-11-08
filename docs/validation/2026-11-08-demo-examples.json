@@ -1,0 +1,269 @@
+{
+  "date": "2026-11-08",
+  "timezone": "America/Sao_Paulo",
+  "description": "Executable demo roadmap examples 0.1 through 7.3.1 against real Datadam",
+  "tests": {
+    "unit": 187,
+    "integration": 207,
+    "total": 394,
+    "newDemoIntegration": 18,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "additionalJvmUnitRuns": {
+      "17": 187,
+      "21": 187,
+      "25": 187
+    },
+    "repeatedIsolatedSecurityRunner": {
+      "tests": 15,
+      "failures": 0,
+      "errors": 0
+    },
+    "optionalBenchmarkTests": 1
+  },
+  "datadam": {
+    "revision": "e2e2c0ae4e9282dd4b1d815e9d893931bd41bd3e",
+    "imageId": "sha256:8f04a23076a8e57be3024dc9f80bf8a1195a16ae65ca7a32ec6a69be8db3f8ea"
+  },
+  "cli": {
+    "defaultDocumentsPerFormat": 30,
+    "reports": [
+      {
+        "scenario": "0.1",
+        "status": "PASSED",
+        "checks": [
+          "UNIQUE SKU lookup",
+          "IDX compound range, native ordering and pagination",
+          "FT TAG/NUMERIC",
+          "Duplicate SKU refused without replacement"
+        ]
+      },
+      {
+        "scenario": "1.1.1",
+        "status": "PASSED",
+        "checks": [
+          "Default 60-second TTL",
+          "Reservation indexed before expiry",
+          "Expired reservation removed from IDX",
+          "Expired reservation removed from FT",
+          "Explicit persist removes expiry"
+        ]
+      },
+      {
+        "scenario": "1.2.1",
+        "status": "PASSED",
+        "checks": [
+          "Named ticket ID generator",
+          "Returned ID reused for read and update",
+          "Assigned external ID serialized and read",
+          "Persistable exclusive import refuses collision"
+        ]
+      },
+      {
+        "scenario": "1.3.1",
+        "status": "PASSED",
+        "checks": [
+          "BeforeConvert normalization, auditing and BeforeSave validation",
+          "Editing preserves creation audit",
+          "BeforeSave rejects blank title",
+          "Rejected edit did not replace article",
+          "AfterSave failure reconciled by ID: write already acknowledged"
+        ]
+      },
+      {
+        "scenario": "2.1.1",
+        "status": "PASSED",
+        "checks": [
+          "Compare-and-set advances version",
+          "Stale update refused",
+          "Stale delete refused",
+          "Reload reconciles current quantity",
+          "Delete with current version"
+        ]
+      },
+      {
+        "scenario": "3.1.1",
+        "status": "PASSED",
+        "checks": [
+          "Typed nested JSONPath read",
+          "JSON null is a match",
+          "Absent path differs from null",
+          "Absent document differs from absent path",
+          "Array JSONPath matches",
+          "Partial writes preserve absolute TTL",
+          "Unrelated nested preference remains unchanged",
+          "Versioned partial mutation refused",
+          "Audited partial mutation refused",
+          "Partial mutation cannot bypass write callback"
+        ]
+      },
+      {
+        "scenario": "3.2.1",
+        "status": "PASSED",
+        "checks": [
+          "Native numeric increment and multiply",
+          "Popped JSON null differs from empty array",
+          "Array append, insert and length",
+          "Empty array pop",
+          "Merge removes null-valued object member",
+          "Later operation fails on out-of-bounds array index",
+          "Earlier append remains: sequence has no rollback"
+        ]
+      },
+      {
+        "scenario": "4.1.1",
+        "status": "PASSED",
+        "checks": [
+          "HASH scalar and object values round-trip",
+          "HASH optimistic locking and TTL preservation",
+          "Null property removes HASH field",
+          "HASH collections decoded with declared types",
+          "HASH stale save refused",
+          "JSON and HASH coexist with the same logical ID and different prefixes"
+        ]
+      },
+      {
+        "scenario": "4.2.1",
+        "status": "PASSED",
+        "checks": [
+          "IDX matches whole HASH region including comma",
+          "HASH range pagination and total",
+          "FT alias tag and semicolon separator match complete token",
+          "FT TAG does not match token substring",
+          "FT region token differs from IDX whole-field equality",
+          "Derived split TAG equality refused"
+        ]
+      },
+      {
+        "scenario": "5.1.1",
+        "status": "PASSED",
+        "checks": [
+          "JSON record projection maps category to department",
+          "JSON IDX/FT projections preserve pagination and total",
+          "HASH closed interface projection preserves absent nullable property and mapped name",
+          "HASH FT projection preserves aliases, nullable values, pagination and total"
+        ]
+      },
+      {
+        "scenario": "5.2.1",
+        "status": "PASSED",
+        "checks": [
+          "Literal prefix escapes search metacharacters",
+          "ASCII IgnoreCase with native numeric ordering; null pages remain eligible",
+          "Prefix AND numeric range",
+          "TAG In",
+          "Numeric NotIn requires presence and excludes missing pages",
+          "AND/OR with numeric Not",
+          "Unsupported Contains refused by compiler",
+          "String Not refused by compiler",
+          "Empty prefix refused before command"
+        ]
+      },
+      {
+        "scenario": "6.1.1",
+        "status": "PASSED",
+        "checks": [
+          "Observer lists example index names",
+          "Product schema matches and is READY",
+          "Book schema matches and is READY",
+          "DeviceState schema matches and is READY",
+          "Read-only schema drift: fields.size: expected=1, actual=2",
+          "Product plan: demo:examples:products:category-price:v1; Covering IDX predicates; equality prefix and native tuple ordering; highest compatibility score (120), index name breaks ties; declared schema only",
+          "Product candidate: demo:examples:products:category-price:v1; compatible=true; Covering IDX predicates; equality prefix and native tuple ordering",
+          "Product candidate: demo:examples:products:sku; compatible=false; Missing predicate field $.category",
+          "Product candidate: demo:examples:products:search; compatible=true; Compatible FT schema; native predicates and sort",
+          "Book plan: demo:examples:books:exact; Compatible FT schema; native predicates and sort; highest compatibility score (1), index name breaks ties; declared schema only",
+          "Device plan: demo:examples:devices:region-seen; Covering IDX predicates; equality prefix and native tuple ordering; highest compatibility score (120), index name breaks ties; declared schema only",
+          "Unsupported native sort reports incompatibility"
+        ]
+      },
+      {
+        "scenario": "6.2.1",
+        "status": "PASSED",
+        "checks": [
+          "Prepare v2 and validate backfill while v1 stays READY",
+          "Original repository still routes explicitly to v1",
+          "Explicit v2 consumer sees backfilled documents",
+          "UNIQUE backfill reports FAILED for duplicate categories",
+          "Failed target preserves source READY",
+          "Correct data, explicitly discard failed target and resume",
+          "Old consumer fails after explicit v1 retirement",
+          "v2 consumer remains usable after retirement"
+        ]
+      },
+      {
+        "scenario": "7.1.1",
+        "status": "PASSED",
+        "checks": [
+          "Import records progress and controlled duplicate rejection",
+          "Import status can be polled by known ID",
+          "Completed import cannot be silently replayed",
+          "Datadam health remains UP",
+          "Duplicate rejection counted in telemetry",
+          "Configured pool limit exposed without credentials"
+        ]
+      },
+      {
+        "scenario": "7.3.1",
+        "status": "PASSED",
+        "checks": [
+          "Product Page: content plus total=30",
+          "Product Slice: look-ahead without total",
+          "Bounded List and explicit count",
+          "Product projection returns same total with selected fields",
+          "HASH Page and projection agree; documents per format=30"
+        ]
+      }
+    ],
+    "isolatedSecurityScenario": {
+      "scenario": "7.2.1",
+      "status": "PASSED",
+      "transportTests": 6,
+      "tlsTests": 4,
+      "aclTests": 5
+    },
+    "additionalWorkload": {
+      "documentsPerFormat": 100,
+      "report": {
+        "scenario": "7.3.1",
+        "status": "PASSED",
+        "checks": [
+          "Product Page: content plus total=100",
+          "Product Slice: look-ahead without total",
+          "Bounded List and explicit count",
+          "Product projection returns same total with selected fields",
+          "HASH Page and projection agree; documents per format=100"
+        ]
+      }
+    }
+  },
+  "liveDemo": {
+    "health": "UP",
+    "productHttpRoundTrip": "PASSED",
+    "remainingExampleKeysAfterCleanup": 0
+  },
+  "benchmark": {
+    "documentsPerFormat": 1000,
+    "combinations": 52,
+    "samples": 10,
+    "warmups": 3,
+    "concurrency": 1,
+    "environment": "../performance/2026-11-08-examples-environment.json",
+    "results": "../performance/2026-11-08-examples-results.csv",
+    "interpretation": "Short reproduction check; not a capacity or statistically robust latency claim"
+  },
+  "commands": [
+    "scripts/run-local.ps1 -Restart -IntegrationTests -Background",
+    "scripts/run-demo-examples.ps1",
+    "scripts/run-demo-workload.ps1 -Count 100",
+    "scripts/run-demo-examples.ps1 -Scenario 6.1.1",
+    "scripts/run-performance.ps1 -Documents '1000' -Samples 10 -Warmups 3"
+  ],
+  "reportsDirectories": [
+    "spring-data-datadam/target/surefire-reports",
+    "datadam-demo/target/failsafe-reports",
+    "datadam-demo/target/example-failures/failsafe-reports",
+    "datadam-demo/target/compatibility"
+  ]
+}
