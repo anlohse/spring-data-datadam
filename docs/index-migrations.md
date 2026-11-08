@@ -129,4 +129,4 @@ A CLI exige exatamente uma ação. `retire` e `discard-failed` são ações sepa
 
 `IndexMigrationRestartIT` inicia um Datadam descartável em porta aleatória de loopback, carrega 15.000 documentos e interrompe o processo enquanto o alvo FT está BUILDING. Após reinício, outro cliente retoma a preparação e verifica a reconstrução e os totais nos dois índices sem novo CREATE/DROP. O contador observado após reinício confirma que o backfill foi retomado. O contêiner e seu volume anônimo são removidos ao final; o serviço da aplicação não é reiniciado por esse teste.
 
-Execute `scripts/run-local.ps1 -Restart -IntegrationTests -Background`. Os testes de reinício exigem Docker CLI e a imagem `datadam:latest` já disponível; `-BuildDatadam` prepara a imagem local quando necessário. Nenhuma mudança C++ adicional é exigida por esta entrega.
+Execute `scripts/run-local.ps1 -Restart -IntegrationTests -Background`. Os testes de reinício exigem Docker CLI e a imagem versionada do [contrato de testes](../config/test-images.properties); `-BuildDatadam` prepara a revisão local fixada quando necessário. Nenhuma mudança C++ adicional é exigida por esta entrega.

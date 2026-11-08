@@ -1,0 +1,38 @@
+{
+  "validationDate": "2026-11-07",
+  "timezone": "America/Sao_Paulo",
+  "datadamRevision": "e2e2c0ae4e9282dd4b1d815e9d893931bd41bd3e",
+  "datadamImageId": "sha256:8f04a23076a8e57be3024dc9f80bf8a1195a16ae65ca7a32ec6a69be8db3f8ea",
+  "buildJdk": "25.0.2+10-69",
+  "maven": "3.8.4",
+  "release": 17,
+  "rows": [
+    {
+      "java": "17.0.21",
+      "image": "eclipse-temurin@sha256:43338b737d0f75d6883d3c4563bc66974113ca8ac296e82f39d161fb3d398f0d",
+      "unitTests": 187,
+      "unitFailures": 0,
+      "boot": "3.5.16",
+      "springData": "3.5.13",
+      "bootConsumer": "passed"
+    },
+    {
+      "java": "21.0.13",
+      "image": "eclipse-temurin@sha256:ebfbb18d11ff163ee83b21258acf12248af48d22a0fdfdc68fa1a1516c05976a",
+      "unitTests": 187,
+      "unitFailures": 0,
+      "boot": "3.5.16",
+      "springData": "3.5.13",
+      "bootConsumer": "passed"
+    },
+    {
+      "java": "25.0.5",
+      "image": "eclipse-temurin@sha256:83f4a7fc27df94dcc7b8de04d14cbbba8da14406f921e966969c3b09000aa507",
+      "unitTests": 187,
+      "unitFailures": 0,
+      "boot": "3.5.16",
+      "springData": "3.5.13",
+      "bootConsumer": "passed"
+    }
+  ]
+}

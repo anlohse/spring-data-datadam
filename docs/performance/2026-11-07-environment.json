@@ -1,0 +1,22 @@
+{
+  "timestampUtc" : "2026-11-08T02:45:47.894220Z",
+  "java" : "25.0.2+10-69",
+  "os" : "Windows 11 10.0 amd64",
+  "clientProcessors" : 28,
+  "clientCpu" : "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+  "datadamImage" : "sha256:8f04a23076a8e57be3024dc9f80bf8a1195a16ae65ca7a32ec6a69be8db3f8ea",
+  "datadamRevision" : "e2e2c0ae4e9282dd4b1d815e9d893931bd41bd3e",
+  "docker" : "29.9.2",
+  "dockerResources" : "28 CPUs; 8169582592 bytes; x86_64",
+  "serverLimits" : "2 CPUs, 1 GiB RAM, read-threads=2",
+  "concurrency" : 1,
+  "payloadCharacters" : 256,
+  "groups" : 10,
+  "pageSize" : 20,
+  "samples" : 50,
+  "warmups" : 10,
+  "seedMillisForBothFormats" : {
+    "1000" : 1927,
+    "10000" : 15226
+  }
+}
