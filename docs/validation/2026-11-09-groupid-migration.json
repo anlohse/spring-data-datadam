@@ -1,0 +1,84 @@
+{
+  "date": "2026-11-09",
+  "timezone": "America/Sao_Paulo",
+  "change": "Maven groupId migration only",
+  "previousGroupId": "io.datadam",
+  "groupId": "com.anlohse.datadam",
+  "namespaceToVerify": "com.anlohse",
+  "javaPackages": "io.datadam.* (unchanged)",
+  "artifactIds": "unchanged",
+  "version": "0.1.0-SNAPSHOT",
+  "ci": {
+    "status": "PASSED",
+    "datadamImage": "sha256:8f04a23076a8e57be3024dc9f80bf8a1195a16ae65ca7a32ec6a69be8db3f8ea",
+    "datadamRevision": "e2e2c0ae4e9282dd4b1d815e9d893931bd41bd3e",
+    "java": "openjdk version \"25.0.2\" 2026-01-20\r\nOpenJDK Runtime Environment (build 25.0.2+10-69)\r\nOpenJDK 64-Bit Server VM (build 25.0.2+10-69, mixed mode, sharing)",
+    "includes": [
+      "unit",
+      "integration",
+      "Java 17/21/25 matrix",
+      "TLS/ACL",
+      "artifacts",
+      "independent consumer"
+    ]
+  },
+  "unitTests": 188,
+  "integrationTests": 207,
+  "totalUniqueTests": 395,
+  "moduleTests": {
+    "spring-data-datadam": {
+      "tests": 140,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0
+    },
+    "datadam-spring-boot-autoconfigure": {
+      "tests": 48,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0
+    },
+    "datadam-demo": {
+      "tests": 207,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0
+    }
+  },
+  "additionalMatrixRuns": 564,
+  "independentConsumer": {
+    "groupId": "com.anlohse.datadam",
+    "libraryVersion": "0.1.0-SNAPSHOT",
+    "datadamRevision": "e2e2c0ae4e9282dd4b1d815e9d893931bd41bd3e",
+    "datadamImage": "sha256:8f04a23076a8e57be3024dc9f80bf8a1195a16ae65ca7a32ec6a69be8db3f8ea",
+    "health": "UP",
+    "status": "PASSED",
+    "artifactSource": "Installed Maven artifacts; independent POM and executable JAR",
+    "operations": [
+      "startup",
+      "health PING",
+      "runtime artifact version",
+      "CRUD",
+      "IDX pagination",
+      "FT projection",
+      "UNIQUE rejection",
+      "optimistic locking"
+    ]
+  },
+  "candidate": {
+    "groupId": "com.anlohse.datadam",
+    "version": "0.1.0-rc.1",
+    "payloads": 13,
+    "checksums": 52,
+    "signed": false,
+    "published": false,
+    "dirtySource": true,
+    "centralLayout": "com/anlohse/datadam/<artifact>/<version>",
+    "bundleSha256": "2a3d49f5f1677c45dacb33a6611584ffd4f93624ac3c5a38215753f832d906d8"
+  },
+  "negativeChecks": [
+    "legacy groupId manifest refused",
+    "POM with mismatched groupId refused even with updated manifest hash"
+  ],
+  "publication": "Not uploaded or published; previous bundles must be recreated with the new coordinates"
+}

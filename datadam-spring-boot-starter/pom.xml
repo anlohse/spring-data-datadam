@@ -1,0 +1,27 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent><groupId>com.anlohse.datadam</groupId><artifactId>datadam-spring-data-parent</artifactId><version>0.1.0-SNAPSHOT</version></parent>
+  <artifactId>datadam-spring-boot-starter</artifactId>
+  <name>Datadam Spring Boot Starter</name>
+  <description>Starter dependencies for Spring Boot applications using native Datadam repositories.</description>
+  <dependencies>
+    <dependency><groupId>com.anlohse.datadam</groupId><artifactId>datadam-spring-boot-autoconfigure</artifactId><version>${project.version}</version></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter</artifactId></dependency>
+  </dependencies>
+  <build><plugins>
+    <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-source-plugin</artifactId></plugin>
+    <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-resources-plugin</artifactId>
+      <executions><execution><id>starter-documentation</id><phase>prepare-package</phase><goals><goal>copy-resources</goal></goals>
+        <configuration><outputDirectory>${project.build.directory}/starter-docs</outputDirectory><resources>
+          <resource><directory>src/main/documentation</directory></resource>
+          <resource><directory>${project.basedir}/..</directory><targetPath>META-INF</targetPath><includes><include>LICENSE</include></includes></resource>
+        </resources></configuration>
+      </execution></executions>
+    </plugin>
+    <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-jar-plugin</artifactId>
+      <executions><execution><id>starter-javadoc</id><phase>package</phase><goals><goal>jar</goal></goals>
+        <configuration><classifier>javadoc</classifier><classesDirectory>${project.build.directory}/starter-docs</classesDirectory></configuration>
+      </execution></executions>
+    </plugin>
+  </plugins></build>
+</project>

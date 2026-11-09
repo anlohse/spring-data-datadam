@@ -1,0 +1,166 @@
+{
+  "date": "2026-11-08",
+  "timezone": "America/Sao_Paulo",
+  "milestone": "8.1 and independent consumer example 8.1.1",
+  "libraryVersion": "0.1.0-SNAPSHOT",
+  "publication": "Installed locally only; no remote deployment",
+  "tests": {
+    "total": 395,
+    "unit": 188,
+    "integration": 207,
+    "modules": {
+      "spring-data-datadam": {
+        "tests": 140,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "datadam-spring-boot-autoconfigure": {
+        "tests": 48,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "datadam-demo": {
+        "tests": 207,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    "additionalJvmExecutions": 564
+  },
+  "matrix": {
+    "17": {
+      "unitTests": 188,
+      "failures": 0,
+      "consumer": "PASSED"
+    },
+    "21": {
+      "unitTests": 188,
+      "failures": 0,
+      "consumer": "PASSED"
+    },
+    "25": {
+      "unitTests": 188,
+      "failures": 0,
+      "consumer": "PASSED"
+    }
+  },
+  "artifacts": [
+    {
+      "artifact": "spring-data-datadam",
+      "classifier": "",
+      "file": "spring-data-datadam-0.1.0-SNAPSHOT.jar",
+      "sha256": "2b356bda5406c2eb599a29b6bf35e4c121e9286841dbe123bba1f4c1fb673ff5"
+    },
+    {
+      "artifact": "spring-data-datadam",
+      "classifier": "sources",
+      "file": "spring-data-datadam-0.1.0-SNAPSHOT-sources.jar",
+      "sha256": "93c4b394bc19d0474c64ac361055a72f15e9ec71fb97c05d37e07d38da6a9c94"
+    },
+    {
+      "artifact": "spring-data-datadam",
+      "classifier": "javadoc",
+      "file": "spring-data-datadam-0.1.0-SNAPSHOT-javadoc.jar",
+      "sha256": "604c9fff9243b19c1491c4fba05da1f0ba4b8e859790f538101d994f87c2be13"
+    },
+    {
+      "artifact": "datadam-spring-boot-autoconfigure",
+      "classifier": "",
+      "file": "datadam-spring-boot-autoconfigure-0.1.0-SNAPSHOT.jar",
+      "sha256": "15e386e4b54fa37ad5961d047b1b33ba80d47b0706d9c94913bb9d047c04606e"
+    },
+    {
+      "artifact": "datadam-spring-boot-autoconfigure",
+      "classifier": "sources",
+      "file": "datadam-spring-boot-autoconfigure-0.1.0-SNAPSHOT-sources.jar",
+      "sha256": "3b132ddaa1a03d06e484854640d2684aaa175bbcd2e7325882b5f5a0224a3d06"
+    },
+    {
+      "artifact": "datadam-spring-boot-autoconfigure",
+      "classifier": "javadoc",
+      "file": "datadam-spring-boot-autoconfigure-0.1.0-SNAPSHOT-javadoc.jar",
+      "sha256": "fd15d350495175a2a9d1401feebf981f81cf6e47d78635fd764464d2521f8f82"
+    },
+    {
+      "artifact": "datadam-spring-boot-starter",
+      "classifier": "",
+      "file": "datadam-spring-boot-starter-0.1.0-SNAPSHOT.jar",
+      "sha256": "d1dcf522c5f7f0893e0821565b5dd04d55c045768225f99e00a5fc8d93c227a2"
+    },
+    {
+      "artifact": "datadam-spring-boot-starter",
+      "classifier": "sources",
+      "file": "datadam-spring-boot-starter-0.1.0-SNAPSHOT-sources.jar",
+      "sha256": "0f74d96d36c2958a6441f00c551ac01760f4c6b16d875698189ff86e7a9366f9"
+    }
+  ],
+  "artifactChecks": [
+    "MIT license in META-INF/LICENSE",
+    "core Lua runtime resources",
+    "core without Boot auto-configuration classes/registration",
+    "generated sources and Javadoc for core/autoconfiguration",
+    "Boot auto-configuration imports and property metadata",
+    "starter binary and sources, no own runtime API"
+  ],
+  "coreRuntimeDependencies": [
+    "io.datadam:spring-data-datadam:jar:0.1.0-SNAPSHOT",
+    "+- org.springframework:spring-context:jar:6.2.19:compile",
+    "|  +- org.springframework:spring-aop:jar:6.2.19:compile",
+    "|  +- org.springframework:spring-beans:jar:6.2.19:compile",
+    "|  +- org.springframework:spring-core:jar:6.2.19:compile",
+    "|  |  \\- org.springframework:spring-jcl:jar:6.2.19:compile",
+    "|  +- org.springframework:spring-expression:jar:6.2.19:compile",
+    "|  \\- io.micrometer:micrometer-observation:jar:1.15.12:compile",
+    "|     \\- io.micrometer:micrometer-commons:jar:1.15.12:compile",
+    "+- org.springframework:spring-tx:jar:6.2.19:compile",
+    "+- org.springframework.data:spring-data-commons:jar:3.5.13:compile",
+    "|  \\- org.slf4j:slf4j-api:jar:2.0.18:compile",
+    "+- redis.clients:jedis:jar:6.0.0:compile",
+    "|  +- org.apache.commons:commons-pool2:jar:2.12.1:compile",
+    "|  +- org.json:json:jar:20250107:compile",
+    "|  +- com.google.code.gson:gson:jar:2.13.2:compile",
+    "|  |  \\- com.google.errorprone:error_prone_annotations:jar:2.41.0:compile",
+    "|  \\- redis.clients.authentication:redis-authx-core:jar:0.1.1-beta2:compile",
+    "+- com.fasterxml.jackson.core:jackson-databind:jar:2.21.4:compile",
+    "|  +- com.fasterxml.jackson.core:jackson-annotations:jar:2.21:compile",
+    "|  \\- com.fasterxml.jackson.core:jackson-core:jar:2.21.4:compile",
+    "\\- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:jar:2.21.4:compile"
+  ],
+  "independentConsumer": {
+    "libraryVersion": "0.1.0-SNAPSHOT",
+    "datadamRevision": "e2e2c0ae4e9282dd4b1d815e9d893931bd41bd3e",
+    "datadamImage": "sha256:8f04a23076a8e57be3024dc9f80bf8a1195a16ae65ca7a32ec6a69be8db3f8ea",
+    "status": "PASSED",
+    "artifactSource": "Installed Maven artifacts; independent POM and executable JAR",
+    "operations": [
+      "CRUD",
+      "IDX pagination",
+      "FT projection",
+      "UNIQUE rejection",
+      "optimistic locking"
+    ]
+  },
+  "consumerDependencyTree": [
+    "example.datadam:consumer-boot:jar:1.0.0-SNAPSHOT",
+    "\\- io.datadam:datadam-spring-boot-starter:jar:0.1.0-SNAPSHOT:compile",
+    "   \\- io.datadam:datadam-spring-boot-autoconfigure:jar:0.1.0-SNAPSHOT:compile",
+    "      \\- io.datadam:spring-data-datadam:jar:0.1.0-SNAPSHOT:compile"
+  ],
+  "consumerPackagingChecks": [
+    "Installed core/autoconfiguration/starter JARs embedded",
+    "No datadam-demo dependency",
+    "No Actuator or Micrometer Core",
+    "Independent Boot parent and POM outside the reactor",
+    "Separate schema process; schema password removed before app launch"
+  ],
+  "demoHealth": "UP",
+  "commands": [
+    "scripts/run-local.ps1 -Restart -IntegrationTests -Background",
+    "mvn -B -ntp -pl datadam-spring-boot-starter -am install",
+    "scripts/verify-library-artifacts.ps1",
+    "scripts/verify-consumer.ps1"
+  ]
+}

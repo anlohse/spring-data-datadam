@@ -1,0 +1,2 @@
+com.anlohse.datadam.spring.config.DatadamAutoConfiguration
+com.anlohse.datadam.spring.config.DatadamDiagnosticsAutoConfiguration

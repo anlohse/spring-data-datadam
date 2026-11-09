@@ -13,7 +13,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Pinned Datadam revision is not available in th
 if ($LASTEXITCODE -ne 0) { throw 'Could not extract the pinned Datadam source.' }
 # Build only the archived revision. Uncommitted changes in the C++ checkout are never included.
 Remove-Item -LiteralPath $archive
-& docker build --label ('org.opencontainers.image.revision=' + $images.DATADAM_REVISION) --label 'io.datadam.spring.test-image=true' -t $images.DATADAM_IMAGE $buildDirectory
+& docker build --label ('org.opencontainers.image.revision=' + $images.DATADAM_REVISION) --label 'com.anlohse.datadam.spring.test-image=true' -t $images.DATADAM_IMAGE $buildDirectory
 if ($LASTEXITCODE -ne 0) { throw 'Pinned Datadam image build failed.' }
 & docker image inspect $images.DATADAM_IMAGE --format '{{.Id}} {{index .Config.Labels "org.opencontainers.image.revision"}}'
 if ($LASTEXITCODE -ne 0) { throw 'Could not inspect the built image.' }

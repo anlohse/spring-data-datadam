@@ -1,0 +1,214 @@
+{
+  "date": "2026-11-08",
+  "timezone": "America/Sao_Paulo",
+  "milestone": "8.2 preparation and example 8.2.1",
+  "ciExecution": "Windows local reproduction of run-ci.ps1 in isolated source snapshot; real Docker Datadam",
+  "githubHostedExecution": "NOT_RUN: workflow files have not been committed/pushed",
+  "ci": {
+    "status": "PASSED",
+    "datadamImage": "sha256:8f04a23076a8e57be3024dc9f80bf8a1195a16ae65ca7a32ec6a69be8db3f8ea",
+    "datadamRevision": "e2e2c0ae4e9282dd4b1d815e9d893931bd41bd3e",
+    "java": "openjdk version \"25.0.2\" 2026-01-20\r\nOpenJDK Runtime Environment (build 25.0.2+10-69)\r\nOpenJDK 64-Bit Server VM (build 25.0.2+10-69, mixed mode, sharing)",
+    "includes": [
+      "unit",
+      "integration",
+      "Java 17/21/25 matrix",
+      "TLS/ACL",
+      "artifacts",
+      "independent consumer"
+    ]
+  },
+  "uniqueTests": {
+    "total": 395,
+    "modules": {
+      "spring-data-datadam": {
+        "tests": 140,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "datadam-spring-boot-autoconfigure": {
+        "tests": 48,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "datadam-demo": {
+        "tests": 207,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    "matrixUnitTestsPerJvm": 188,
+    "additionalMatrixRuns": 564
+  },
+  "candidate": {
+    "version": "0.1.0-rc.1",
+    "sourceCommit": "6b647acd975caa72682eec476e622e8c528a0beb",
+    "dirtySource": true,
+    "published": false,
+    "purpose": "Local candidate with disposable signing fixture, not for publication",
+    "artifactCount": 9,
+    "pomCount": 4,
+    "unitTestsReexecuted": 188,
+    "cryptoVerifiedDetachedSignatures": 13,
+    "secretFixtureDeleted": true,
+    "bundle": {
+      "version": "0.1.0-rc.1",
+      "destination": "https://central.sonatype.com",
+      "payloads": 13,
+      "signed": true,
+      "dirtySource": true,
+      "sha256": "a859072db36a1ef640e3b891e209a964f3db4c67d7b4fc782bce4ade42e2d3de",
+      "submitted": false,
+      "portalValidation": "NOT_RUN",
+      "file": "central-bundle.zip",
+      "signingKeyPurpose": "DISPOSABLE_TEST_KEY_NOT_FOR_PUBLICATION"
+    },
+    "payloadHashes": [
+      {
+        "file": "datadam-spring-boot-autoconfigure/datadam-spring-boot-autoconfigure-0.1.0-rc.1-javadoc.jar",
+        "sha256": "d1f2ec937dc50c5596228c87d9a71461d40580b468277063f1d4fe16cedb3984"
+      },
+      {
+        "file": "datadam-spring-boot-autoconfigure/datadam-spring-boot-autoconfigure-0.1.0-rc.1-javadoc.jar.asc",
+        "sha256": "31a6886ed925b7dd09d6e1888b52dd450e380d9486e74daa07d5950a8d14e719"
+      },
+      {
+        "file": "datadam-spring-boot-autoconfigure/datadam-spring-boot-autoconfigure-0.1.0-rc.1-sources.jar",
+        "sha256": "ad73339d4a3b37d4d42f33175fc892ecdfa0edfbafaaa654aa9b731e7b6a48a6"
+      },
+      {
+        "file": "datadam-spring-boot-autoconfigure/datadam-spring-boot-autoconfigure-0.1.0-rc.1-sources.jar.asc",
+        "sha256": "1b666db11411898874c016152ca36c6cf8a1e9aa2ab6108f8fc2c11692d6ee8f"
+      },
+      {
+        "file": "datadam-spring-boot-autoconfigure/datadam-spring-boot-autoconfigure-0.1.0-rc.1.jar",
+        "sha256": "7fe6a65a4e3edc4307b176b51528909ec36673ff7eed35478eec68ea2c0dfff4"
+      },
+      {
+        "file": "datadam-spring-boot-autoconfigure/datadam-spring-boot-autoconfigure-0.1.0-rc.1.jar.asc",
+        "sha256": "8315360bd4c43be7e6776088eb27d761dbd4a1744e2e88f0fd8f0ddd392c30a6"
+      },
+      {
+        "file": "datadam-spring-boot-autoconfigure/datadam-spring-boot-autoconfigure-0.1.0-rc.1.pom",
+        "sha256": "57d54f1ef4252744890af2d4c97be3099b35df2eeb28cd7f65353853930207c6"
+      },
+      {
+        "file": "datadam-spring-boot-autoconfigure/datadam-spring-boot-autoconfigure-0.1.0-rc.1.pom.asc",
+        "sha256": "ef68f0a37a938f9e7f6f3ea0d00a325f57774deb97ff98981f2ace9a7e89bfbe"
+      },
+      {
+        "file": "datadam-spring-boot-starter/datadam-spring-boot-starter-0.1.0-rc.1-javadoc.jar",
+        "sha256": "4dc2e8773eec7decece4924f69e1edb56202258869988788520923f87d8b4273"
+      },
+      {
+        "file": "datadam-spring-boot-starter/datadam-spring-boot-starter-0.1.0-rc.1-javadoc.jar.asc",
+        "sha256": "45d1339ad8f40d4e8ccb5255e11cf3c9bd5451832a771936e6bb97a596baf565"
+      },
+      {
+        "file": "datadam-spring-boot-starter/datadam-spring-boot-starter-0.1.0-rc.1-sources.jar",
+        "sha256": "89f337729f695695218e7cf0090e62bbece14ecfe969c03f3b17871f7ae0130d"
+      },
+      {
+        "file": "datadam-spring-boot-starter/datadam-spring-boot-starter-0.1.0-rc.1-sources.jar.asc",
+        "sha256": "dde31781bf08ca9b0dda21e0c4be2f32036e4d2dfa1f8712dc53e176ba737add"
+      },
+      {
+        "file": "datadam-spring-boot-starter/datadam-spring-boot-starter-0.1.0-rc.1.jar",
+        "sha256": "97fb0b9953c4b3529833fe5a534724239ea1208469cf00cc7423726cca808e0a"
+      },
+      {
+        "file": "datadam-spring-boot-starter/datadam-spring-boot-starter-0.1.0-rc.1.jar.asc",
+        "sha256": "7b3f5118f2393dd0837d74b833b4647edc9c15b89cac86d957894e3c3f1af6c3"
+      },
+      {
+        "file": "datadam-spring-boot-starter/datadam-spring-boot-starter-0.1.0-rc.1.pom",
+        "sha256": "0e180b1fa60c35f82f357fce5e19095e54a75707b4ae120576d6664d59c1ca19"
+      },
+      {
+        "file": "datadam-spring-boot-starter/datadam-spring-boot-starter-0.1.0-rc.1.pom.asc",
+        "sha256": "977c8c50dbae5991cc6595c3888c208207147736cca68accabd596b3c010bf91"
+      },
+      {
+        "file": "datadam-spring-data-parent/datadam-spring-data-parent-0.1.0-rc.1.pom",
+        "sha256": "24597cdd3b85522775b7f5d6004ac944384dcfcc352f159019dce55b8ad2166b"
+      },
+      {
+        "file": "datadam-spring-data-parent/datadam-spring-data-parent-0.1.0-rc.1.pom.asc",
+        "sha256": "f79e431a62c1b7cc22a6095d3285268b3cc4c468b186d73ca7692e01875fd1c5"
+      },
+      {
+        "file": "spring-data-datadam/spring-data-datadam-0.1.0-rc.1-javadoc.jar",
+        "sha256": "9c5772567f8b30397fdf93f90c553521ea73a40a550d305a1904d3fa797d3daf"
+      },
+      {
+        "file": "spring-data-datadam/spring-data-datadam-0.1.0-rc.1-javadoc.jar.asc",
+        "sha256": "8db87042930dbec3fbcf094088fcfa0279c4ebee3bbd02a9b74ba028ecd0d5ed"
+      },
+      {
+        "file": "spring-data-datadam/spring-data-datadam-0.1.0-rc.1-sources.jar",
+        "sha256": "84bdf3ac97f3192570fe596072ebef6e9f5b4383a65055c27bfae409450de594"
+      },
+      {
+        "file": "spring-data-datadam/spring-data-datadam-0.1.0-rc.1-sources.jar.asc",
+        "sha256": "9030a07453e1e0631009ff7dd5a519862e46eb0092d8da673621645c915f0292"
+      },
+      {
+        "file": "spring-data-datadam/spring-data-datadam-0.1.0-rc.1.jar",
+        "sha256": "a9413215a528cb0bbd5b59b7944c126b7b3b465e728f364f6fda3da2c2fd0d2f"
+      },
+      {
+        "file": "spring-data-datadam/spring-data-datadam-0.1.0-rc.1.jar.asc",
+        "sha256": "5feda10a2a524cc15a7cdb7f802594b10c52879764894f7771cafee541f4fad9"
+      },
+      {
+        "file": "spring-data-datadam/spring-data-datadam-0.1.0-rc.1.pom",
+        "sha256": "8e2c33e6aa16567e210c792016eebebb6a90d35977be8350a057727e64815949"
+      },
+      {
+        "file": "spring-data-datadam/spring-data-datadam-0.1.0-rc.1.pom.asc",
+        "sha256": "afaabad206d79d032f9c0b2823b08bf8ac2efeaac15701272eb9813aeb8509c3"
+      }
+    ]
+  },
+  "smoke": {
+    "libraryVersion": "0.1.0-rc.1",
+    "datadamRevision": "e2e2c0ae4e9282dd4b1d815e9d893931bd41bd3e",
+    "datadamImage": "sha256:8f04a23076a8e57be3024dc9f80bf8a1195a16ae65ca7a32ec6a69be8db3f8ea",
+    "health": "UP",
+    "status": "PASSED",
+    "artifactSource": "Installed Maven artifacts; independent POM and executable JAR",
+    "operations": [
+      "startup",
+      "health PING",
+      "runtime artifact version",
+      "CRUD",
+      "IDX pagination",
+      "FT projection",
+      "UNIQUE rejection",
+      "optimistic locking"
+    ]
+  },
+  "negativeChecks": [
+    "runtime artifact version mismatch refused before business flow",
+    "tampered payload hash refused",
+    "unsigned candidate refused when signatures required",
+    "SNAPSHOT refused as release version"
+  ],
+  "lint": {
+    "actionlint": "PASSED: CI and manual candidate workflows",
+    "PowerShellParser": "PASSED"
+  },
+  "publication": {
+    "destination": "Maven Central / Central Portal",
+    "uploaded": false,
+    "published": false,
+    "portalValidation": "NOT_RUN",
+    "namespaceVerification": "io.datadam verification by the owner is pending",
+    "productionSigningKey": "NOT_CONFIGURED",
+    "authorization": "Explicit approval of version/commit/bundle/destination still required"
+  },
+  "demoHealth": "UP"
+}
