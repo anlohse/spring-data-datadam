@@ -73,7 +73,7 @@ O cenário usa autenticação ACL sobre TLS e `tls-auth-clients no`: valida aute
 
 ## Matriz ACL ampliada
 
-`AclSecurityIT` cria seu próprio Datadam com protected-mode habilitado, usuário default desligado e três papéis:
+`AclSecurityIT` cria seu próprcom.anlohse.datadam com protected-mode habilitado, usuário default desligado e três papéis:
 
 | Papel | Dados | Consultas | Administração |
 |---|---|---|---|

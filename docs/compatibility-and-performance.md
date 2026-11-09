@@ -8,18 +8,18 @@ O contrato atual é Spring Boot **3.5.16**, Spring Data Commons **3.5.13**, Jedi
 
 | Runtime validado | Plataforma | Unidade | Consumidor Spring Boot + Datadam |
 |---|---|---|---|
-| Temurin 17.0.21 | Linux x86_64 em Docker | 187 aprovados | Aprovado |
-| Temurin 21.0.13 | Linux x86_64 em Docker | 187 aprovados | Aprovado |
-| Temurin 25.0.5 | Linux x86_64 em Docker | 187 aprovados | Aprovado |
-| OpenJDK 25.0.2 | Windows 11 x64 | 187 aprovados | Suíte completa de integração aprovada |
+| Temurin 17.0.21 | Linux x86_64 em Docker | 188 aprovados | Aprovado |
+| Temurin 21.0.13 | Linux x86_64 em Docker | 188 aprovados | Aprovado |
+| Temurin 25.0.5 | Linux x86_64 em Docker | 188 aprovados | Aprovado |
+| OpenJDK 25.0.2 | Windows 11 x64 | 188 aprovados | Suíte completa de integração aprovada |
 
 O build registrado usa Maven 3.8.4, JDK 25.0.2 e `--release 17`. As outras JVMs executam os mesmos artefatos compilados; não são três recompilações com compiladores diferentes. A matriz não declara suporte validado a Boot 4, outras versões de dependências, Java intermediário, Java 26+, ARM ou servidor nativo Windows. A faixa permitida pelo próprio Boot é mais ampla que os pontos efetivamente testados pela biblioteca.
 
 `CompatibilityMatrixIT` copia somente classpaths compilados/dependências para clientes isolados. Em cada imagem JDK executa a suíte inteira da biblioteca pelo JUnit Console e depois inicia um consumidor Boot. O consumidor valida IDs, versão, CRUD JSON/HASH, UNIQUE, IDX derivado com Page, projeções FT, atualização/exclusão versionadas, recusa de escrita obsoleta, TTL, health e métricas. O servidor é novo em cada linha da matriz.
 
-As três linhas são três casos da suíte Maven, mas executam adicionalmente **561 testes unitários dentro dos contêineres**. Essas execuções repetidas não são somadas ao número de testes únicos do projeto. Os testes TLS da entrega 7.2 continuam sendo um conjunto separado e usam a JVM JRE fixada no contrato de imagens.
+As três linhas são três casos da suíte Maven, mas executam adicionalmente **564 testes unitários dentro dos contêineres**. Desde 8.1, o classpath reúne testes do núcleo e da autoconfiguração; são 140 + 48 casos. A verificação de ausência de Boot/telemetria é feita no classpath Maven isolado do núcleo, e a mesma configuração manual é reexecutada no classpath combinado da matriz. Essas execuções repetidas não são somadas ao número de testes únicos do projeto. Os testes TLS da entrega 7.2 continuam sendo um conjunto separado e usam a JVM JRE fixada no contrato de imagens.
 
-Evidência resumida: [compatibilidade em JSON](validation/2026-11-07-compatibility.json). Os logs completos e relatórios JUnit ficam em `datadam-demo/target/compatibility/java17`, `java21` e `java25`.
+Evidência histórica de 7.3: [compatibilidade em JSON](validation/2026-11-07-compatibility.json). A validação de 8.1 está em [artefatos e consumo independente](validation/2026-11-08-consumption.json). Os logs completos e relatórios JUnit ficam em `datadam-demo/target/compatibility/java17`, `java21` e `java25`.
 
 ## Identidade do Datadam e imagens
 

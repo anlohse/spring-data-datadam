@@ -2,11 +2,11 @@
 
 Este documento acompanha a evolução da biblioteca, da base funcional atual até uma versão adequada para adoção em outros projetos. A ordem busca entregar utilidade em cada etapa, sem depender de uma reescrita futura.
 
-**Estado atual:** CRUD, consultas e projeções nativas IDX/FT em JSON e HASH, com TTL, IDs, auditoria, callbacks e controle de versão, mais operações JSON com incrementos, arrays e merge. Há diagnóstico de consultas/pool e migração explícita de índices. A matriz valida Java 17/21/25 com Boot 3.5.16 e Data Commons 3.5.13; imagens são identificadas por revisão/digests e há resultados de desempenho publicados. São 394 testes Java aprovados: 187 unitários e 207 de integração com Datadam real no Docker, incluindo 18 verificações novas dos exemplos. A matriz reexecuta também os 187 unitários em cada JVM isolada (561 execuções adicionais). O servidor com HREPLACE/RETURNJSON passou por 186 testes nativos e integração/persistência C++ na entrega 5.1; as entregas posteriores até 7.3 não alteraram o código C++.
+**Estado atual:** CRUD, consultas e projeções nativas IDX/FT em JSON e HASH, com TTL, IDs, auditoria, callbacks e controle de versão, mais operações JSON com incrementos, arrays e merge. Há diagnóstico de consultas/pool e migração explícita de índices. A matriz valida Java 17/21/25 com Boot 3.5.16 e Data Commons 3.5.13; imagens são identificadas por revisão/digests e há resultados de desempenho publicados. A entrega 8.1 separou núcleo, autoconfiguração e starter, com fontes/Javadoc, metadados e consumidor independente validado. São 395 testes Java aprovados: 188 unitários (140 no núcleo e 48 na autoconfiguração) e 207 de integração com Datadam real no Docker. A matriz reexecuta também os 188 unitários em cada JVM isolada (564 execuções adicionais). O servidor com HREPLACE/RETURNJSON passou por 186 testes nativos e integração/persistência C++ na entrega 5.1; as entregas posteriores até 7.3 não alteraram o código C++.
 
-**Próxima entrega:** **8.1 — Projeto pronto para consumo**. A implementação dessa entrega ainda não começou.
+**Próxima ação:** concluir a publicação do **8.2 no Maven Central**, após verificar o namespace com.anlohse e a chave real, revisar um candidato de checkout limpo e obter autorização explícita. CI, preparação de candidato e exemplo 8.2.1 estão implementados e validados localmente; nada foi enviado ao Central.
 
-**Trilha adicional de exemplos:** concluídos os 16 subtópicos de **0.1 até 7.3.1**, com modelos próprios, roteiros CLI/HTTP e validação no Docker. Consulte [os exemplos executáveis](docs/demo-examples.md) e [a evidência da execução](docs/validation/2026-11-08-demo-examples.json). O próximo exemplo, **8.1.1**, depende da entrega 8.1; os exemplos das etapas 8–10 continuam pendentes.
+**Trilha adicional de exemplos:** concluídos os 16 subtópicos de **0.1 até 7.3.1**, com modelos próprios, roteiros CLI/HTTP e validação no Docker. Consulte [os exemplos executáveis](docs/demo-examples.md) e [a evidência da execução](docs/validation/2026-11-08-demo-examples.json). O exemplo **8.1.1 — Consumidor independente** também foi concluído; o exemplo **8.2.1 — Smoke test de versão candidata** também foi concluído. Os exemplos das etapas 9–10 continuam pendentes; a publicação de 8.2 permanece separada.
 
 ## Como vamos trabalhar
 
@@ -398,25 +398,27 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 ## 8. Distribuição e primeira versão estável
 
-### 8.1. Projeto pronto para consumo
+### 8.1. Projeto pronto para consumo — concluído
 
-- [ ] Revisar a divisão entre integração Spring Data e configuração específica de Spring Boot; separar um starter se houver benefício concreto.
-- [ ] Revisar a API pública e documentar garantias, limitações e política de compatibilidade.
-- [ ] Preparar artefatos de fontes e Javadoc, licença e metadados de distribuição.
-- [ ] Validar a dependência em uma aplicação consumidora independente do reactor Maven deste projeto.
+- [x] Revisar a divisão entre integração Spring Data e configuração específica de Spring Boot; separar um starter se houver benefício concreto.
+- [x] Revisar a API pública e documentar garantias, limitações e política de compatibilidade.
+- [x] Preparar artefatos de fontes e Javadoc, licença e metadados de distribuição.
+- [x] Validar a dependência em uma aplicação consumidora independente do reactor Maven deste projeto.
 
 #### 8.1.1. Exemplo de consumo: aplicação independente
 
 **Dependência:** conclusão do contrato de distribuição do item 8.1.
 
-- [ ] Criar `examples/consumer-boot` com POM próprio, fora do reactor principal, consumindo o artefato versionado e demonstrando um repositório de `Book` ou `Product`.
-- [ ] Adicionar instruções para instalar a biblioteca localmente, configurar a conexão, preparar índices com credenciais separadas e executar um fluxo CRUD/consulta sem depender das classes do demo principal.
+- [x] Criar `examples/consumer-boot` com POM próprio, fora do reactor principal, consumindo o artefato versionado e demonstrando um repositório de `Book` ou `Product`.
+- [x] Adicionar instruções para instalar a biblioteca localmente, configurar a conexão, preparar índices com credenciais separadas e executar um fluxo CRUD/consulta sem depender das classes do demo principal.
+
+**Entregue em 2026-11-08:** núcleo sem dependências de runtime Boot/Actuator/Micrometer Core, autoconfiguração em artefato próprio e starter adotado pelo demo. Foram preservados os nomes Java das classes movidas; consumidores Boot deste SNAPSHOT devem trocar a dependência direta pelo starter. POMs incluem licença MIT, autor, SCM/URLs; oito JARs de código/fontes/Javadoc foram conferidos. API, política de compatibilidade e migração em [docs/public-api-and-compatibility.md](docs/public-api-and-compatibility.md). O consumidor [examples/consumer-boot](examples/consumer-boot/README.md), fora do reactor, empacotou os artefatos instalados e passou por CRUD, IDX, projeção FT, UNIQUE e versão com usuários/schema separados e Datadam descartável. Validação: 395 testes aprovados, mais 564 reexecuções na matriz; [evidência e hashes](docs/validation/2026-11-08-consumption.json). Não houve alteração C++, CI, assinatura ou publicação remota.
 
 ### 8.2. Integração contínua e release
 
-- [ ] Automatizar build, testes unitários e integração com Datadam real no Docker.
-- [ ] Criar checklist de release, changelog e orientação de atualização.
-- [ ] Definir destino de publicação e preparar assinatura/credenciais sem incluí-las no repositório.
+- [x] Automatizar build, testes unitários e integração com Datadam real no Docker.
+- [x] Criar checklist de release, changelog e orientação de atualização.
+- [x] Definir destino de publicação e preparar assinatura/credenciais sem incluí-las no repositório.
 - [ ] Publicar a primeira versão somente após autorização explícita para o destino escolhido.
 
 **Concluído quando:** outro projeto puder consumir um artefato versionado com documentação, testes reproduzíveis e instruções de atualização.
@@ -425,8 +427,14 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Dependência:** aplicação consumidora independente do item 8.1.1.
 
-- [ ] Adicionar um roteiro de smoke test do consumidor com a versão candidata: startup, health, cadastro, leitura e consulta indexada, usando dados próprios.
-- [ ] Documentar execução local e na CI e como conferir a versão do artefato; manter publicação remota como uma ação separada conforme o contrato do item 8.2.
+- [x] Adicionar um roteiro de smoke test do consumidor com a versão candidata: startup, health, cadastro, leitura e consulta indexada, usando dados próprios.
+- [x] Documentar execução local e na CI e como conferir a versão do artefato; manter publicação remota como uma ação separada conforme o contrato do item 8.2.
+
+**Preparação entregue em 2026-11-08; publicação pendente:** workflows GitHub Actions com actions fixadas por SHA, runner portátil, servidor isolado com ACL e imagem por revisão/ID, suíte/matriz e consumidor independente. Changelog, checklist, configuração de assinatura via ambiente e bundle em layout Central com checksums foram entregues. O candidato local 0.1.0-rc.1 passou por smoke (startup/versão/health/CRUD/IDX/FT), 13 assinaturas verificadas com chave descartável e quatro recusas controladas. São 395 testes aprovados e 564 reexecuções na matriz. A CI foi reproduzida localmente no Windows; a execução hospedada no GitHub e a validação do Portal ainda não ocorreram. Destino escolhido: Maven Central; namespace com.anlohse (groupId com.anlohse.datadam, atualizado em 09/11/2026) e chave real precisam ser configurados/verificados pelo mantenedor. O candidato tem dirtySource=true e assinatura somente de teste: não é publicável. O último check permanece aberto até autorização e publicação reais. Consulte [docs/ci-and-release.md](docs/ci-and-release.md), [CHANGELOG.md](CHANGELOG.md) e [evidência](docs/validation/2026-11-08-ci-release.json).
+
+**Atualização em 2026-11-09:** groupId alterado para `com.anlohse.datadam` no parent, módulos, demo e consumidor independente. Na primeira validação dessa mudança, os pacotes Java ainda eram `io.datadam.*`; a migração posterior dos pacotes está registrada abaixo. Os artifactIds permanecem. Metadados Maven, manifesto e layout Central foram atualizados; bundles antigos são recusados. Foram aprovados 395 testes, mais 564 reexecuções na matriz e o smoke do candidato local com as novas coordenadas. O candidato desta migração não está assinado nem publicado. [Evidência da migração](docs/validation/2026-11-09-groupid-migration.json).
+
+**Migração de pacotes em 2026-11-09:** pacotes Java alterados de `io.datadam.*` para `com.anlohse.datadam.*`, com atualização de imports, registros Boot, caminhos Lua e entry points. A validação final aprovou 395 testes, 564 reexecuções na matriz, consumidor independente, catálogo CLI e candidato local com 13 payloads. O verificador de JARs passou a recusar classes antigas e registros Boot inconsistentes. [Evidência dos pacotes](docs/validation/2026-11-09-package-migration.json). Publicação remota permanece pendente.
 
 ## 9. Transações Spring — evolução posterior
 

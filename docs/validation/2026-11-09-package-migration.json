@@ -1,0 +1,85 @@
+{
+  "date": "2026-11-09",
+  "timezone": "America/Sao_Paulo",
+  "change": "Java packages migrated from io.datadam to com.anlohse.datadam",
+  "groupId": "com.anlohse.datadam",
+  "javaPackages": "com.anlohse.datadam.*",
+  "tests": {
+    "total": 395,
+    "modules": {
+      "spring-data-datadam": {
+        "tests": 140,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      "datadam-spring-boot-autoconfigure": {
+        "tests": 48,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      "datadam-demo": {
+        "tests": 207,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      }
+    },
+    "additionalJvmRuns": 564
+  },
+  "ciExecution": "Local isolated source snapshot, real Docker Datadam",
+  "consumer": {
+    "groupId": "com.anlohse.datadam",
+    "libraryVersion": "0.1.0-SNAPSHOT",
+    "datadamRevision": "e2e2c0ae4e9282dd4b1d815e9d893931bd41bd3e",
+    "datadamImage": "sha256:8f04a23076a8e57be3024dc9f80bf8a1195a16ae65ca7a32ec6a69be8db3f8ea",
+    "health": "UP",
+    "status": "PASSED",
+    "artifactSource": "Installed Maven artifacts; independent POM and executable JAR",
+    "operations": [
+      "startup",
+      "health PING",
+      "runtime artifact version",
+      "CRUD",
+      "IDX pagination",
+      "FT projection",
+      "UNIQUE rejection",
+      "optimistic locking"
+    ]
+  },
+  "catalogCli": {
+    "scenario": "0.1",
+    "status": "PASSED",
+    "checks": [
+      "UNIQUE SKU lookup",
+      "IDX compound range, native ordering and pagination",
+      "FT TAG/NUMERIC",
+      "Duplicate SKU refused without replacement"
+    ]
+  },
+  "candidate": {
+    "version": "0.1.0-rc.1",
+    "signed": false,
+    "published": false,
+    "dirtySource": true,
+    "payloads": 13,
+    "bundleSha256": "29194599889ee245ed7b7cd81df278b3a4da66bfef985c09ee1bdc6d1f9949d4"
+  },
+  "additionalChecks": [
+    "Java package/source paths match",
+    "No legacy Java classes/resources in binary JARs",
+    "Boot registration matches packaged classes",
+    "Lua resources use relocated paths",
+    "Nine binary/source/documentation JARs verified",
+    "actionlint and PowerShell parser passed"
+  ],
+  "corrections": [
+    "Boot auto-configuration registration names",
+    "Demo CLI entry point",
+    "Artifact verifier resource paths",
+    "Independent consumer imports",
+    "Migration instructions and historical coordinates"
+  ],
+  "publication": "No upload or publication; Central namespace/signing key/authorization are still pending"
+}

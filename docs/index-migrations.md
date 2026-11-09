@@ -116,9 +116,9 @@ Depois de editar a configuração local, `docker compose restart datadam` carreg
 ```powershell
 $env:DATADAM_MIGRATION_USER = 'index-migrator'
 $env:DATADAM_MIGRATION_PASSWORD = 'local-index-migrator-password'
-java '-Dloader.main=io.datadam.demo.IndexMigrationApplication' -cp datadam-demo/target/datadam-demo-0.1.0-SNAPSHOT.jar org.springframework.boot.loader.launch.PropertiesLauncher inspect
-java '-Dloader.main=io.datadam.demo.IndexMigrationApplication' -cp datadam-demo/target/datadam-demo-0.1.0-SNAPSHOT.jar org.springframework.boot.loader.launch.PropertiesLauncher prepare
-java '-Dloader.main=io.datadam.demo.IndexMigrationApplication' -cp datadam-demo/target/datadam-demo-0.1.0-SNAPSHOT.jar org.springframework.boot.loader.launch.PropertiesLauncher validate
+java '-Dloader.main=com.anlohse.datadam.demo.IndexMigrationApplication' -cp datadam-demo/target/datadam-demo-0.1.0-SNAPSHOT.jar org.springframework.boot.loader.launch.PropertiesLauncher inspect
+java '-Dloader.main=com.anlohse.datadam.demo.IndexMigrationApplication' -cp datadam-demo/target/datadam-demo-0.1.0-SNAPSHOT.jar org.springframework.boot.loader.launch.PropertiesLauncher prepare
+java '-Dloader.main=com.anlohse.datadam.demo.IndexMigrationApplication' -cp datadam-demo/target/datadam-demo-0.1.0-SNAPSHOT.jar org.springframework.boot.loader.launch.PropertiesLauncher validate
 ```
 
 A CLI exige exatamente uma ação. `retire` e `discard-failed` são ações separadas e exigem credenciais `index-retirer`; não são parte de `prepare`. Não execute `retire` neste exemplo enquanto os repositórios atuais ainda dependerem do FT original.
