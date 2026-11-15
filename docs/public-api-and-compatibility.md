@@ -53,7 +53,7 @@ Exceções Spring DAO distinguem duplicata (`DuplicateKeyException`), versão ob
 
 ## Garantias e limites
 
-- APIs são bloqueantes, com uma conexão do pool por comando. Não há suporte reativo, cluster, database diferente de 0 ou gerenciador de transações Spring nesta versão. A dependência `spring-tx` oferece a hierarquia de exceções, sem fornecer um transaction manager Datadam.
+- APIs são bloqueantes, com uma conexão do pool por comando. Não há suporte reativo, cluster, database diferente de 0 ou gerenciador de transações Spring nesta versão. A dependência `spring-tx` oferece a hierarquia de exceções, sem fornecer um transaction manager Datadam. [Decisão da etapa 9 e garantias nativas](spring-transactions.md).
 - JSON é padrão; HASH requer HREPLACE. Projeções JSON requerem RETURNJSON. O servidor validado é a revisão fixada em `config/test-images.properties`, não Redis comum nem qualquer revisão Datadam.
 - UNIQUE, filtros, ordem e paginação usam recursos nativos. Não se promete equivalência com todos os operadores Spring Data nem busca textual completa do RediSearch. TAG/NUMERIC e as recusas documentadas definem o escopo.
 - `@Version` faz CAS por entidade. Atualizações/exclusões recusadas por versão não substituem o documento. Comandos diretos e alterações fora da biblioteca podem contornar esse contrato.
