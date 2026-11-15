@@ -46,7 +46,7 @@ java -jar $jar
 docker compose down
 ```
 
-O Compose é exclusivo deste consumidor: porta 6381, usuários próprios, prefixo `consumer:book:` e volume `datadam-consumer_consumer-data`. `down` preserva o volume. As credenciais no arquivo Docker são apenas de desenvolvimento local. A imagem padrão é a revisão de desenvolvimento fixada no repositório; prepare-a pelo script principal `build-test-image.ps1` se ainda não existir. O wrapper automatizado também verifica o label da revisão e fixa o ID observado.
+O Compose deste consumidor usa a porta 6381, usuários próprios, prefixo `consumer:book:` e volume `datadam-consumer_consumer-data`. `down` preserva o volume. As credenciais no arquivo Docker são de desenvolvimento local. O Compose baixa a imagem oficial Datadam 0.2.0 pelo digest quando necessário. O wrapper automatizado também confere o rótulo de revisão e fixa o ID observado.
 
 ## Contrato da aplicação
 

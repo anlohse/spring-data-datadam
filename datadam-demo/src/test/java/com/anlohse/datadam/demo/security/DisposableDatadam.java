@@ -17,10 +17,12 @@ import com.anlohse.datadam.demo.support.TestImages;
 public final class DisposableDatadam implements AutoCloseable {
     public final String name = "datadam-security-it-" + UUID.randomUUID();
     public final int port;
+    private final boolean tls;
     public DisposableDatadam(Path directory, String configuration, boolean tls) throws Exception {
         this(directory, configuration, tls, java.util.List.of());
     }
     public DisposableDatadam(Path directory, String configuration, boolean tls, java.util.List<String> limits) throws Exception {
+        this.tls = tls;
         try (var reservation = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))) { port = reservation.getLocalPort(); }
         Files.createDirectories(directory);
         Files.writeString(directory.resolve("server.conf"), "bind 0.0.0.0\nmemcache-port 0\nread-threads 2\ndir /var/lib/datadam\n"
@@ -28,9 +30,11 @@ public final class DisposableDatadam implements AutoCloseable {
         String serverImage = TestImages.datadam();
         try {
             var args = new ArrayList<String>(java.util.List.of("create", "--name", name, "-p", "127.0.0.1:" + port + ":6379", "--entrypoint", "datadam"));
-            args.addAll(limits); args.add(serverImage); args.add("/tmp/security/server.conf");
+            args.addAll(limits); args.add(serverImage); args.add("/tmp/datadam-test.conf");
             docker(args.toArray(String[]::new));
-            docker("cp", directory.toAbsolutePath().toString(), name + ":/tmp/security");
+            // JUnit temp roots can have mode 0700 on Linux and are owned by root after docker cp.
+            docker("cp", directory.resolve("server.conf").toAbsolutePath().toString(), name + ":/tmp/datadam-test.conf");
+            if (tls) docker("cp", directory.toAbsolutePath().toString(), name + ":/tmp/security");
             docker("start", name);
             awaitReady();
         } catch (Exception | AssertionError e) { close(); throw e; }
@@ -47,7 +51,15 @@ public final class DisposableDatadam implements AutoCloseable {
     void awaitReady() throws Exception {
         long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
         while (System.nanoTime() < deadline) {
-            try (var socket = new Socket()) { socket.connect(new InetSocketAddress("127.0.0.1", port), 300); return; }
+            try (var socket = new Socket()) {
+                socket.connect(new InetSocketAddress("127.0.0.1", port), 300);
+                if (tls) return; // The TLS probe runs on the Docker network with the fixture CA.
+                socket.setSoTimeout(500);
+                socket.getOutputStream().write("*1\r\n$4\r\nPING\r\n".getBytes(StandardCharsets.US_ASCII));
+                var input = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.US_ASCII));
+                String reply = input.readLine();
+                if ("+PONG".equals(reply) || (reply != null && reply.startsWith("-NOAUTH"))) return;
+            }
             catch (IOException e) { Thread.sleep(50); }
         }
         throw new AssertionError("Disposable server did not start: " + docker("logs", "--tail", "15", name));

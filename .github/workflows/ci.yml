@@ -22,19 +22,9 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
-      - name: Check out pinned Datadam source
+      - name: Build and verify against the published Datadam image
         shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          . ./scripts/test-images.ps1
-          $images = Get-DatadamTestImages
-          git clone --filter=blob:none --no-checkout https://github.com/anlohse/datadam.git "$env:RUNNER_TEMP/datadam-source"
-          if ($LASTEXITCODE -ne 0) { throw 'Datadam clone failed' }
-          git -C "$env:RUNNER_TEMP/datadam-source" cat-file -e "$($images.DATADAM_REVISION)^{commit}"
-          if ($LASTEXITCODE -ne 0) { throw 'Pinned Datadam revision is unavailable' }
-      - name: Build and verify against real Datadam
-        shell: pwsh
-        run: ./scripts/run-ci.ps1 -BuildDatadam -Source "$env:RUNNER_TEMP/datadam-source"
+        run: ./scripts/run-ci.ps1
       - name: Upload reports and artifact manifest
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

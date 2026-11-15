@@ -36,14 +36,9 @@ jobs:
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
           if ($env:RELEASE_VERSION -notmatch '^\d+\.\d+\.\d+(-rc\.[1-9]\d*)?$') { throw 'Use a release or RC version without SNAPSHOT' }
-      - name: Clone pinned native source
-        shell: pwsh
-        run: |
-          git clone --filter=blob:none --no-checkout https://github.com/anlohse/datadam.git "$env:RUNNER_TEMP/datadam-source"
-          if ($LASTEXITCODE -ne 0) { throw 'Datadam clone failed' }
       - name: Run full verification
         shell: pwsh
-        run: ./scripts/run-ci.ps1 -BuildDatadam -Source "$env:RUNNER_TEMP/datadam-source"
+        run: ./scripts/run-ci.ps1
       - name: Prepare versioned bundle
         shell: pwsh
         env:

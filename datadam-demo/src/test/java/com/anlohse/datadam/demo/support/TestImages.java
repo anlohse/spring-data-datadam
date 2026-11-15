@@ -1,10 +1,11 @@
 package com.anlohse.datadam.demo.support;
 
 import java.io.*;
+import java.time.Duration;
 import java.util.Properties;
 import com.anlohse.datadam.demo.security.DisposableDatadam;
 
-/** One image contract shared by Compose/scripts/tests. Resolve mutable local tags to an ID before running. */
+/** Resolve the pinned Datadam image to a local ID before running the tests. */
 public final class TestImages {
     private static final Properties SETTINGS = load();
     private static String serverId;
@@ -25,10 +26,19 @@ public final class TestImages {
     public static String tlsJava() { return System.getenv().getOrDefault("DATADAM_TLS_JAVA_IMAGE", setting("DATADAM_TLS_JAVA_IMAGE")); }
     public static synchronized String datadam() throws Exception {
         if (serverId == null) {
-            String image = System.getenv().getOrDefault("DATADAM_IMAGE", setting("DATADAM_IMAGE"));
-            var inspection = new com.fasterxml.jackson.databind.ObjectMapper().readTree(DisposableDatadam.docker("image", "inspect", image)).get(0);
+            String override = System.getenv("DATADAM_IMAGE");
+            String image = override == null || override.isBlank() ? setting("DATADAM_IMAGE") : override;
+            String details;
+            try {
+                details = DisposableDatadam.docker("image", "inspect", image);
+            } catch (AssertionError missing) {
+                if (!image.equals(setting("DATADAM_IMAGE"))) throw missing;
+                DisposableDatadam.run(Duration.ofMinutes(5), "docker", "pull", image);
+                details = DisposableDatadam.docker("image", "inspect", image);
+            }
+            var inspection = new com.fasterxml.jackson.databind.ObjectMapper().readTree(details).get(0);
             String observed = inspection.path("Config").path("Labels").path("org.opencontainers.image.revision").asText();
-            if (!revision().equals(observed)) throw new AssertionError("Datadam image revision mismatch; run scripts/build-test-image.ps1");
+            if (!revision().equals(observed)) throw new AssertionError("Datadam image revision mismatch: " + image);
             serverId = inspection.path("Id").asText();
         }
         return serverId;

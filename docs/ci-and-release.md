@@ -6,20 +6,20 @@ Desde 09/11/2026, o groupId e os pacotes Java usam **com.anlohse.datadam**, sob 
 
 ## CI
 
-`.github/workflows/ci.yml` roda em push para main, pull requests e acionamento manual. Usa Ubuntu 24.04, PowerShell 7 e Java 25, com actions fixadas por SHA e permissão somente de leitura. Não usa `pull_request_target` nem segredos de release. Compila o C++ arquivado da revisão em `config/test-images.properties`; não incorpora alterações de um checkout nativo nem substitui Datadam por Redis.
+`.github/workflows/ci.yml` roda em push para main, pull requests e acionamento manual. Usa Ubuntu 24.04, PowerShell 7 e Java 25, com actions fixadas por SHA e permissão somente de leitura. Os workflows de CI e de candidato usam a imagem oficial Datadam 0.2.0. O runner baixa a referência por digest quando necessário e confere a revisão no rótulo OCI antes de iniciar os testes. [Release Datadam 0.2.0](https://github.com/anlohse/datadam/releases/tag/v0.2.0).
 
 `scripts/run-ci.ps1` executa os mesmos passos localmente:
 
 ```powershell
-# Em um checkout de validação, sem o JAR do demo em execução nessa pasta:
-.\scripts\run-ci.ps1 -BuildDatadam -Source D:/cpp/workspaces/datadam
-# Se a imagem fixada já existe:
 .\scripts\run-ci.ps1
+
+# Para reconstruir localmente a revisão fixada a partir do C++:
+.\scripts\run-ci.ps1 -BuildDatadam -Source D:/cpp/workspaces/datadam
 ```
 
 O runner inicia um servidor descartável com ACL do demo em porta efêmera/loopback, executa `mvn install -Pintegration`, verifica os artefatos e empacota/executa o consumidor independente. A suíte inclui Java 17/21/25, TLS/ACL, reinício, perda de resposta e recuperação de backfill. Os testes de falha criam seus próprios contêineres. Ao terminar, remove somente os recursos que criou e restaura o ambiente. Não altera o servidor local do demo nem limpa seu volume. A execução Maven pode sobrescrever os JARs de target: use outro checkout se estiver executando o demo a partir deles.
 
-O workflow publica relatórios JUnit, logs da matriz e manifestos como artefatos de validação por 14 dias. Isso não publica pacotes Maven. O build C++ pode levar mais tempo que os testes Java; `timeout-minutes` limita a execução. Credenciais TLS de inspeção do Windows são configuradas somente no Windows; Linux usa seu truststore normal.
+O workflow disponibiliza relatórios JUnit, logs da matriz e manifestos como artefatos de validação por 14 dias. O runner reutiliza a imagem baixada entre o servidor da suíte, os contêineres descartáveis e o consumidor. Credenciais TLS de inspeção são configuradas somente no Windows. Linux usa seu truststore normal.
 
 ## Preparar um candidato
 
