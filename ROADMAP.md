@@ -2,11 +2,13 @@
 
 Este documento acompanha a evolução da biblioteca, da base funcional atual até uma versão adequada para adoção em outros projetos. A ordem busca entregar utilidade em cada etapa, sem depender de uma reescrita futura.
 
-**Estado atual:** CRUD, consultas e projeções nativas IDX/FT em JSON e HASH, com TTL, IDs, auditoria, callbacks e controle de versão, mais operações JSON com incrementos, arrays e merge. Há diagnóstico de consultas/pool e migração explícita de índices. A matriz valida Java 17/21/25 com Boot 3.5.16 e Data Commons 3.5.13; imagens são identificadas por revisão/digests e há resultados de desempenho publicados. A entrega 8.1 separou núcleo, autoconfiguração e starter, com fontes/Javadoc, metadados e consumidor independente validado. São 395 testes Java aprovados: 188 unitários (140 no núcleo e 48 na autoconfiguração) e 207 de integração com Datadam real no Docker. A matriz reexecuta também os 188 unitários em cada JVM isolada (564 execuções adicionais). O servidor com HREPLACE/RETURNJSON passou por 186 testes nativos e integração/persistência C++ na entrega 5.1; as entregas posteriores até 7.3 não alteraram o código C++.
+**Estado atual:** CRUD, consultas e projeções nativas IDX/FT em JSON e HASH, com TTL, IDs, auditoria, callbacks e controle de versão, mais operações JSON com incrementos, arrays e merge. Há diagnóstico de consultas/pool e migração explícita de índices. A matriz valida Java 17/21/25 com Boot 3.5.16 e Data Commons 3.5.13; imagens são identificadas por revisão/digests e há resultados de desempenho publicados. A entrega 8.1 separou núcleo, autoconfiguração e starter, com fontes/Javadoc, metadados e consumidor independente validado. São 403 testes Java aprovados: 188 unitários (140 no núcleo e 48 na autoconfiguração) e 215 de integração com Datadam real no Docker. A matriz reexecuta também os 188 unitários em cada JVM isolada (564 execuções adicionais). O servidor com HREPLACE/RETURNJSON passou por 186 testes nativos e integração/persistência C++ na entrega 5.1; as entregas posteriores até 7.3 não alteraram o código C++.
 
 **Próxima ação:** concluir a publicação do **8.2 no Maven Central**, após verificar o namespace com.anlohse e a chave real, revisar um candidato de checkout limpo e obter autorização explícita. CI, preparação de candidato e exemplo 8.2.1 estão implementados e validados localmente; nada foi enviado ao Central.
 
-**Trilha adicional de exemplos:** concluídos os 16 subtópicos de **0.1 até 7.3.1**, com modelos próprios, roteiros CLI/HTTP e validação no Docker. Consulte [os exemplos executáveis](docs/demo-examples.md) e [a evidência da execução](docs/validation/2026-11-08-demo-examples.json). O exemplo **8.1.1 — Consumidor independente** também foi concluído; o exemplo **8.2.1 — Smoke test de versão candidata** também foi concluído. Os exemplos das etapas 9–10 continuam pendentes; a publicação de 8.2 permanece separada.
+**Próxima etapa de desenvolvimento:** **10 — Repositórios reativos**. A etapa 9 encerrou a investigação de transações e registrou o adiamento do gerenciador Spring e do exemplo transacional no demo.
+
+**Trilha adicional de exemplos:** concluídos os 16 subtópicos de **0.1 até 7.3.1**, com modelos próprios, roteiros CLI/HTTP e validação no Docker. Consulte [os exemplos executáveis](docs/demo-examples.md) e [a evidência da execução](docs/validation/2026-11-08-demo-examples.json). O exemplo **8.1.1 — Consumidor independente** também foi concluído; o exemplo **8.2.1 — Smoke test de versão candidata** também foi concluído. O exemplo Spring da etapa 9 foi adiado e o exemplo da etapa 10 está pendente.
 
 ## Como vamos trabalhar
 
@@ -436,22 +438,22 @@ As etapas 9 e 10 são evoluções posteriores. A primeira versão estável não 
 
 **Migração de pacotes em 2026-11-09:** pacotes Java alterados de `io.datadam.*` para `com.anlohse.datadam.*`, com atualização de imports, registros Boot, caminhos Lua e entry points. A validação final aprovou 395 testes, 564 reexecuções na matriz, consumidor independente, catálogo CLI e candidato local com 13 payloads. O verificador de JARs passou a recusar classes antigas e registros Boot inconsistentes. [Evidência dos pacotes](docs/validation/2026-11-09-package-migration.json). Publicação remota permanece pendente.
 
-## 9. Transações Spring — evolução posterior
+## 9. Transações Spring — investigação concluída
 
-- [ ] Investigar as garantias efetivas de MULTI/EXEC, WATCH e erros de execução no Datadam.
-- [ ] Documentar a diferença entre atomicidade, isolamento e rollback; não inferir que uma transação de comandos ofereça rollback completo.
-- [ ] Decidir se um gerenciador Spring pode oferecer um contrato útil e correto, incluindo conexão vinculada à transação e propagação suportada.
-- [ ] Se viável, implementar o escopo definido e testar falhas de comandos, UNIQUE, versão e perda de conexão.
-- [ ] Documentar o contrato entregue ou o motivo concreto para adiar o suporte.
+- [x] Investigar as garantias efetivas de MULTI/EXEC, WATCH e erros de execução no Datadam.
+- [x] Documentar isolamento, rollback e os limites de durabilidade do bloco.
+- [x] Avaliar vínculo de conexão, propagação Spring e compatibilidade com a API síncrona de repositórios.
+- [x] Testar o protocolo nativo com Datadam real, incluindo erros, UNIQUE, versão e perda de conexão.
+- [x] Registrar o motivo do adiamento do gerenciador Spring.
 
 **Concluído quando:** a decisão estiver registrada e qualquer suporte oferecido tiver garantias comprovadas, sem sugerir equivalência automática com transações de um banco relacional.
 
-### 9.1. Exemplo no demo: operação envolvendo pedido e estoque
+**Decisão em 2026-11-15:** `MULTI/EXEC` enfileira comandos e oferece resultados por operação. `WATCH` pode impedir a execução, mas erros durante `EXEC` deixam outras escritas aplicadas. A conexão vinculada, por si só, não preservaria os retornos síncronos de `save` e das leituras, nem o momento dos callbacks. O gerenciador Spring ficou adiado. O [relatório de transações](docs/spring-transactions.md) contém o contrato e o comando de teste.
 
-**Dependência:** decisão de viabilidade e contrato efetivamente entregue na etapa 9.
+### 9.1. Exemplo no demo: operação envolvendo pedido e estoque — adiado
 
-- [ ] Após a decisão, criar um roteiro com `PurchaseOrder` e `StockItem` que mostre as garantias reais em sucesso, concorrência e falha, distinguindo atomicidade, isolamento e rollback.
-- [ ] Se houver integração transacional Spring entregue, demonstrar seu uso com os limites documentados; caso contrário, documentar o cenário e o motivo de adiamento do exemplo transacional.
+- [ ] Criar o exemplo Spring com `PurchaseOrder` e `StockItem` quando houver um contrato que trate êxito parcial e resultado desconhecido.
+- [x] Documentar o cenário e o motivo do adiamento. A suíte nativa comprova o efeito parcial e a ambiguidade na perda de resposta.
 
 ## 10. Repositórios reativos — evolução posterior
 

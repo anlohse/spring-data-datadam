@@ -285,7 +285,7 @@ Se o Maven falhar com PKIX nesta máquina, o script já usa o repositório de ce
 Escopo de 0.1:
 
 - Mapeamento de repositórios em JSON e HASH, operações JSON adicionais e projeções nativas IDX/FT, conforme as páginas específicas de cada recurso.
-- Consultas anotadas, derivação de nomes e API programática, com IDs atribuídos ou geração opcional, TTL, auditoria/callbacks e optimistic locking. Repositórios reativos e transações Spring continuam no roadmap. Derivação é limitada ao subconjunto documentado acima.
+- Consultas anotadas, derivação de nomes no subconjunto documentado acima e API programática, com IDs atribuídos ou geração opcional, TTL, auditoria/callbacks e optimistic locking. A etapa 9 registrou os limites do protocolo e adiou o gerenciador de transações Spring. [Contrato e testes de transações](docs/spring-transactions.md).
 - `Page` de IDX faz `IDX.COUNT` e `IDX.QUERY` separados. Sob concorrência, conteúdo e total podem refletir momentos distintos. Para somente contagem, use `count(index, query)`; FT já devolve o total no mesmo comando.
 - `findAll`, `count()` e `deleteAll()` percorrem o prefixo usando SCAN por tipo de armazenamento (ReJSON-RL ou hash). Para consultas de negócio e grandes coleções, prefira índices; o `DBSIZE` do Datadam é uma estimativa global.
 - `saveAll` e exclusões em lote são sequenciais e podem ter êxito parcial. Sem política de TTL, `save` faz JSON.SET e mantém o prazo existente. Com TTL, usa um script isolado para gravar e expirar, com os limites de durabilidade descritos na documentação de TTL. Não há emulação de índices com sets de Redis.
