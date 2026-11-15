@@ -23,27 +23,20 @@ Evidência histórica de 7.3: [compatibilidade em JSON](validation/2026-11-07-co
 
 ## Identidade do Datadam e imagens
 
-O servidor validado é o commit C++ **`e2e2c0ae4e9282dd4b1d815e9d893931bd41bd3e`**, que contém HREPLACE e RETURNJSON. É um ponto de desenvolvimento identificável, não uma declaração de compatibilidade com qualquer Datadam nem com Redis comum.
+Os testes atuais usam a imagem oficial **Datadam 0.2.0**, que contém HREPLACE e RETURNJSON. As medições de desempenho abaixo são históricas e usaram o commit de desenvolvimento `e2e2c0ae4e9282dd4b1d815e9d893931bd41bd3e`. [Release Datadam 0.2.0](https://github.com/anlohse/datadam/releases/tag/v0.2.0).
 
 [config/test-images.properties](../config/test-images.properties) é o contrato compartilhado entre scripts e testes. Ele fixa:
 
-- Tag local `datadam:spring-data-e2e2c0ae4e92` e revisão C++ completa.
+- Digest da imagem publicada em GHCR e revisão C++ completa.
 - Digests das imagens JDK 17/21/25 e da JRE usada no TLS.
 
-`scripts/build-test-image.ps1` usa `git archive` da revisão fixa para montar um contexto em target. O checkout C++ pode estar em outra branch ou ter mudanças locais: elas não entram no build. A imagem recebe o label OCI da revisão. Informe `-Source` ou `DATADAM_SOURCE` para usar outro clone que contenha esse commit.
-
-Antes de iniciar servidores descartáveis, `TestImages` exige esse label e resolve a tag para o ID de conteúdo uma vez por execução. Os contêineres usam o ID resolvido, evitando troca de tag durante o teste. Override por `DATADAM_IMAGE` só passa se mantiver a revisão esperada. O Compose também usa a tag versionada; a referência antiga `datadam:latest` deixou de ser o padrão.
-
-ID observado neste build: `sha256:8f04a23076a8e57be3024dc9f80bf8a1195a16ae65ca7a32ec6a69be8db3f8ea`.
-
-Esse ID identifica o conteúdo executado localmente. Reconstruções em outro momento podem ter outro ID: os pacotes/base do Dockerfile C++ não são todos congelados por este projeto. A revisão de código é fixa, e cada execução registra o ID real; não prometemos builds bit a bit idênticos ou uma imagem Datadam publicada em registry. Não é preciso modificar o checkout C++ para construir o contrato de teste.
+O runner reutiliza a imagem local quando disponível e faz `docker pull` por digest em uma máquina nova. Antes de iniciar servidores descartáveis, os scripts e `TestImages` conferem a revisão no rótulo OCI e resolvem a referência para o ID local. A opção `DATADAM_IMAGE` permite selecionar outra imagem da mesma revisão. O Compose usa o digest da mesma release.
 
 ```powershell
-./scripts/build-test-image.ps1 -Source D:/cpp/workspaces/datadam
 ./scripts/run-local.ps1 -Restart -IntegrationTests -Background
 ```
 
-O segundo comando prepara as imagens Java fixadas se necessário. Para inspecionar/iniciar Compose manualmente, use `docker compose --env-file config/test-images.properties up -d --no-build`. Atualizações da revisão ou de imagens exigem editar o contrato, reconstruir e repetir a matriz; não são feitas silenciosamente pelos testes.
+Para reconstruir a versão de teste a partir do C++, use `-BuildDatadam` e aponte `DATADAM_SOURCE` para um clone com a revisão fixada. O script arquiva somente esse commit e grava uma tag local. Execute a matriz novamente ao atualizar o contrato de imagens. Para rodar apenas o servidor, use `docker compose up -d --no-build`.
 
 ## Medição registrada
 

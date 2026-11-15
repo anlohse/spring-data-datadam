@@ -13,7 +13,7 @@ Runtimes validados: Java 17, 21 e 25, com Spring Boot 3.5.16 e Spring Data Commo
 Na pasta deste README:
 
 ```powershell
-# Após preparar a imagem versionada (o primeiro build pode usar -BuildDatadam):
+# Baixa a imagem oficial fixada quando necessário:
 .\scripts\run-local.ps1 -IntegrationTests -Background
 
 # Para recompilar e substituir a instância iniciada pelo script:
@@ -41,7 +41,7 @@ Stop-Process -Id ([int](Get-Content .\datadam-demo\target\demo.pid))
 docker compose down
 ```
 
-O volume `datadam-spring-data_datadam-data` preserva os documentos e índices. `docker compose down` mantém esse volume. A imagem pode ser reconstruída com `docker compose build`; para mudar a localização do fonte C++, configure `DATADAM_SOURCE` (padrão `D:/cpp/workspaces/datadam`). Portas HTTP e Datadam podem ser configuradas, respectivamente, por `PORT` e pelo mapeamento no Compose junto com `DATADAM_PORT`.
+O volume `datadam-spring-data_datadam-data` preserva os documentos e índices após `docker compose down`. Para reconstruir a imagem do C++ localmente com `-BuildDatadam`, use um clone que contenha a revisão fixada e indique seu caminho com `DATADAM_SOURCE` (padrão `D:/cpp/workspaces/datadam`). As portas HTTP e Datadam são configuradas por `PORT` e pelo mapeamento no Compose junto com `DATADAM_PORT`, respectivamente.
 
 ## Usar a biblioteca em outra aplicação
 

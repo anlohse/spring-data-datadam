@@ -7,16 +7,13 @@ function Start-DatadamVerificationServer {
     param([string]$Config, [string]$NamePrefix, [string]$Username, [string]$Password)
     . (Join-Path $PSScriptRoot 'test-images.ps1')
     $images = Get-DatadamTestImages
-    $imageName = if ($env:DATADAM_IMAGE) { $env:DATADAM_IMAGE } else { $images.DATADAM_IMAGE }
-    $inspection = & docker image inspect $imageName | ConvertFrom-Json
-    if ($LASTEXITCODE -ne 0) { throw 'Pinned Datadam image is missing; run scripts/build-test-image.ps1' }
-    if ($inspection[0].Config.Labels.'org.opencontainers.image.revision' -ne $images.DATADAM_REVISION) { throw 'Datadam image revision mismatch' }
+    $image = Get-DatadamTestImage $images
     $name = $NamePrefix + '-' + [guid]::NewGuid().ToString('N')
     $created = $false
     try {
         # Copy config through the Docker API: works on Windows, Linux and remote Linux Docker engines.
         & docker create --name $name --publish '127.0.0.1::6379' --tmpfs '/var/lib/datadam:rw,mode=1777' `
-            --entrypoint datadam $inspection[0].Id /tmp/verification.conf | Out-Null
+            --entrypoint datadam $image.Id /tmp/verification.conf | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Could not create disposable Datadam' }
         $created = $true
         & docker cp (Resolve-Path -LiteralPath $Config).Path "${name}:/tmp/verification.conf"
@@ -47,7 +44,7 @@ function Start-DatadamVerificationServer {
             finally { $client.Dispose() }
         }
         if (-not $ready) { throw 'Datadam readiness timed out' }
-        return [pscustomobject]@{ Name=$name; Port=$port; Image=$inspection[0].Id; Revision=$images.DATADAM_REVISION }
+        return [pscustomobject]@{ Name=$name; Port=$port; Image=$image.Id; Revision=$images.DATADAM_REVISION }
     } catch {
         if ($created) { & docker rm -f -v $name | Out-Null }
         throw

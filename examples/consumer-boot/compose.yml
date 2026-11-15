@@ -1,7 +1,7 @@
 name: datadam-consumer
 services:
   datadam:
-    image: ${DATADAM_IMAGE:-datadam:spring-data-e2e2c0ae4e92}
+    image: ${DATADAM_IMAGE:-ghcr.io/anlohse/datadam@sha256:a93e6fc4096ace4564fecc96c570ac2436cab3e9031acf0aefe1f0b004812a76}
     ports:
       - "127.0.0.1:6381:6379"
     volumes:

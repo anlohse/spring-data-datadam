@@ -2,6 +2,7 @@ param([string]$Source = $env:DATADAM_SOURCE)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'test-images.ps1')
 $images = Get-DatadamTestImages
+$localImage = Get-DatadamLocalImageName $images
 if (-not $Source) { $Source = 'D:/cpp/workspaces/datadam' }
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $buildDirectory = Join-Path $projectRoot ('target/datadam-source-' + [guid]::NewGuid().ToString('N'))
@@ -13,7 +14,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Pinned Datadam revision is not available in th
 if ($LASTEXITCODE -ne 0) { throw 'Could not extract the pinned Datadam source.' }
 # Build only the archived revision. Uncommitted changes in the C++ checkout are never included.
 Remove-Item -LiteralPath $archive
-& docker build --label ('org.opencontainers.image.revision=' + $images.DATADAM_REVISION) --label 'com.anlohse.datadam.spring.test-image=true' -t $images.DATADAM_IMAGE $buildDirectory
+& docker build --build-arg ('GIT_COMMIT=' + $images.DATADAM_REVISION) --label ('org.opencontainers.image.revision=' + $images.DATADAM_REVISION) --label 'com.anlohse.datadam.spring.test-image=true' -t $localImage $buildDirectory
 if ($LASTEXITCODE -ne 0) { throw 'Pinned Datadam image build failed.' }
-& docker image inspect $images.DATADAM_IMAGE --format '{{.Id}} {{index .Config.Labels "org.opencontainers.image.revision"}}'
+& docker image inspect $localImage --format '{{.Id}} {{index .Config.Labels "org.opencontainers.image.revision"}}'
 if ($LASTEXITCODE -ne 0) { throw 'Could not inspect the built image.' }

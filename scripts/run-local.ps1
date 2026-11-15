@@ -23,9 +23,13 @@ try {
     }
     # Trust the system CAs, including a locally managed HTTPS inspection certificate.
     $env:MAVEN_OPTS = "$previousMavenOptions -Djavax.net.ssl.trustStoreType=Windows-ROOT -Djavax.net.ssl.trustStore=NONE"
-    if ($BuildDatadam) { & (Join-Path $PSScriptRoot 'build-test-image.ps1') }
+    if ($BuildDatadam) {
+        & (Join-Path $PSScriptRoot 'build-test-image.ps1')
+        $env:DATADAM_IMAGE = Get-DatadamLocalImageName $images
+    }
+    $null = Get-DatadamTestImage $images
     docker compose up -d --no-build
-    if ($LASTEXITCODE -ne 0) { throw 'Could not start Datadam. Start Docker Desktop first; use -BuildDatadam if the image is missing.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Could not start Datadam. Check the Docker daemon and Compose logs.' }
     if ($IntegrationTests) {
         $tlsJavaImage = $env:DATADAM_TLS_JAVA_IMAGE
         foreach ($runtimeImage in @($tlsJavaImage, $images.JAVA17_IMAGE, $images.JAVA21_IMAGE, $images.JAVA25_IMAGE)) {

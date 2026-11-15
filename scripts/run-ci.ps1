@@ -5,6 +5,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'test-images.ps1')
 $images = Get-DatadamTestImages
 $previousMaven = $env:MAVEN_OPTS
+$previousDatadamImage = $env:DATADAM_IMAGE
 $saved = @{}
 foreach ($name in @('DATADAM_HOST','DATADAM_PORT','DATADAM_USERNAME','DATADAM_PASSWORD','DATADAM_ADMIN_PASSWORD',
     'DATADAM_SCHEMA_PASSWORD','DATADAM_INDEX_OBSERVER_PASSWORD','DATADAM_INDEX_MIGRATOR_PASSWORD','DATADAM_INDEX_RETIRER_PASSWORD')) {
@@ -14,7 +15,10 @@ $server = $null
 Push-Location $projectRoot
 try {
     $env:MAVEN_OPTS = Get-DatadamMavenOptions $previousMaven
-    if ($BuildDatadam) { & (Join-Path $PSScriptRoot 'build-test-image.ps1') -Source $Source }
+    if ($BuildDatadam) {
+        & (Join-Path $PSScriptRoot 'build-test-image.ps1') -Source $Source
+        $env:DATADAM_IMAGE = Get-DatadamLocalImageName $images
+    }
     foreach ($image in @($images.DATADAM_TLS_JAVA_IMAGE,$images.JAVA17_IMAGE,$images.JAVA21_IMAGE,$images.JAVA25_IMAGE)) {
         & docker image inspect $image *> $null
         if ($LASTEXITCODE -ne 0) {
@@ -24,6 +28,7 @@ try {
     }
     $server = Start-DatadamVerificationServer -Config (Join-Path $projectRoot 'docker/datadam.conf') `
         -NamePrefix datadam-ci -Username app -Password local-app-password
+    $env:DATADAM_IMAGE = $server.Image
     $env:DATADAM_HOST = '127.0.0.1'; $env:DATADAM_PORT = [string]$server.Port
     $env:DATADAM_USERNAME = 'app'; $env:DATADAM_PASSWORD = 'local-app-password'
     $env:DATADAM_ADMIN_PASSWORD = 'local-schema-password'; $env:DATADAM_SCHEMA_PASSWORD = 'local-schema-password'
@@ -42,6 +47,7 @@ try {
     finally {
         foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name,$saved[$name],'Process') }
         $env:MAVEN_OPTS = $previousMaven
+        $env:DATADAM_IMAGE = $previousDatadamImage
         Pop-Location
     }
 }
