@@ -1,0 +1,6 @@
+<!-- Copy outside the checkout. Supply values through the process environment, never literal secrets. -->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0">
+  <servers><server><id>central</id>
+    <username>${env.CENTRAL_TOKEN_USERNAME}</username><password>${env.CENTRAL_TOKEN_PASSWORD}</password>
+  </server></servers>
+</settings>

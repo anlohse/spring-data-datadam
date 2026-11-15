@@ -1,6 +1,6 @@
 # Exemplos executáveis do demo — etapas 0 a 7
 
-Os 16 subtópicos do roadmap têm roteiros que criam dados, executam operações reais e conferem os resultados. `ExampleScenarios` contém os passos de negócio; entidades, repositórios, callbacks e serviços ficam em `datadam-demo/src/main/java/io/datadam/demo/examples`. O cenário de falhas usa os testes de segurança existentes e o novo `StockItem`.
+Os 16 subtópicos do roadmap têm roteiros que criam dados, executam operações reais e conferem os resultados. `ExampleScenarios` contém os passos de negócio; entidades, repositórios, callbacks e serviços ficam em `datadam-demo/src/main/java/com/anlohse/datadam/demo/examples`. O cenário de falhas usa os testes de segurança existentes e o novo `StockItem`.
 
 ## Preparar e executar
 

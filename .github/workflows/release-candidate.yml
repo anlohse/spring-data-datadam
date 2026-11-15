@@ -1,0 +1,75 @@
+name: Prepare release candidate
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Candidate version, for example 0.1.0-rc.1'
+        required: true
+        type: string
+      sign:
+        description: 'Sign with the release-preparation environment key; never uploads to Central'
+        default: false
+        type: boolean
+permissions:
+  contents: read
+concurrency:
+  group: release-preparation
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: release-preparation
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Validate version input
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          if ($env:RELEASE_VERSION -notmatch '^\d+\.\d+\.\d+(-rc\.[1-9]\d*)?$') { throw 'Use a release or RC version without SNAPSHOT' }
+      - name: Clone pinned native source
+        shell: pwsh
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/anlohse/datadam.git "$env:RUNNER_TEMP/datadam-source"
+          if ($LASTEXITCODE -ne 0) { throw 'Datadam clone failed' }
+      - name: Run full verification
+        shell: pwsh
+        run: ./scripts/run-ci.ps1 -BuildDatadam -Source "$env:RUNNER_TEMP/datadam-source"
+      - name: Prepare versioned bundle
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          SIGN_CANDIDATE: ${{ inputs.sign }}
+          MAVEN_GPG_KEY: ${{ inputs.sign && secrets.MAVEN_GPG_KEY || '' }}
+          MAVEN_GPG_PASSPHRASE: ${{ inputs.sign && secrets.MAVEN_GPG_PASSPHRASE || '' }}
+        run: ./scripts/prepare-release.ps1 -Version $env:RELEASE_VERSION -Sign:($env:SIGN_CANDIDATE -eq 'true')
+      - name: Upload candidate for review
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: candidate-${{ inputs.version }}-${{ github.run_id }}
+          retention-days: 14
+          path: |
+            target/releases/**/bundle/**
+            target/releases/**/manifest.json
+            target/releases/**/consumer-verification.json
+            target/releases/**/central-bundle.zip
+            target/releases/**/central-bundle.json
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: candidate-tests-${{ github.run_id }}
+          retention-days: 14
+          path: |
+            **/target/surefire-reports/**
+            **/target/failsafe-reports/**
+            datadam-demo/target/compatibility/**

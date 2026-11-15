@@ -49,7 +49,7 @@ Nesta versão, anotações de auditoria devem estar na raiz da entidade. Metadad
 
 ## Callbacks e ordem
 
-As interfaces em `io.datadam.spring.callback` estendem `EntityCallback<T>` do Spring Data.
+As interfaces em `com.anlohse.datadam.spring.callback` estendem `EntityCallback<T>` do Spring Data.
 
 | Callback | Momento |
 |---|---|

@@ -43,7 +43,7 @@ try {
     $previousAdminPassword = $env:DATADAM_ADMIN_PASSWORD
     try {
         if (-not $env:DATADAM_ADMIN_PASSWORD) { $env:DATADAM_ADMIN_PASSWORD = 'local-schema-password' }
-        & java '-Dloader.main=io.datadam.demo.SchemaApplication' -cp $jar org.springframework.boot.loader.launch.PropertiesLauncher
+        & java '-Dloader.main=com.anlohse.datadam.demo.SchemaApplication' -cp $jar org.springframework.boot.loader.launch.PropertiesLauncher
         if ($LASTEXITCODE -ne 0) { throw 'Schema initialization failed' }
     } finally { $env:DATADAM_ADMIN_PASSWORD = $previousAdminPassword }
     if ($Background) {

@@ -1,0 +1,14 @@
+spring:
+  main:
+    web-application-type: none
+datadam:
+  host: ${DATADAM_HOST:localhost}
+  port: ${DATADAM_PORT:6380}
+  username: consumer-app
+  password: ${CONSUMER_APP_PASSWORD}
+  connect-timeout: 5s
+  read-timeout: 5s
+  pool:
+    max-total: 4
+    max-idle: 4
+    max-wait: 2s

@@ -95,7 +95,7 @@ O Docker local inclui `index-observer`, autorizado somente a conexão e esses tr
 
 ```powershell
 $env:DATADAM_ADMIN_PASSWORD = 'local-schema-password'
-java '-Dloader.main=io.datadam.demo.IndexDiagnosticsApplication' -cp datadam-demo/target/datadam-demo-0.1.0-SNAPSHOT.jar org.springframework.boot.loader.launch.PropertiesLauncher
+java '-Dloader.main=com.anlohse.datadam.demo.IndexDiagnosticsApplication' -cp datadam-demo/target/datadam-demo-0.1.0-SNAPSHOT.jar org.springframework.boot.loader.launch.PropertiesLauncher
 # Acrescente --wait para aguardar até 30 segundos por índice existente.
 ```
 

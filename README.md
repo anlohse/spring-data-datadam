@@ -1,8 +1,8 @@
 # Spring Data Datadam
 
-Biblioteca Java com repositórios Spring Data que persistem entidades como documentos JSON e consultam os índices nativos do Datadam. O projeto contém a biblioteca `spring-data-datadam` e uma aplicação Spring Boot HTTP `datadam-demo`.
+Biblioteca Java com repositórios Spring Data que persistem entidades JSON/HASH e consultam os índices nativos do Datadam. O projeto contém núcleo `spring-data-datadam`, autoconfiguração `datadam-spring-boot-autoconfigure`, starter `datadam-spring-boot-starter` e aplicação HTTP `datadam-demo`.
 
-O [roadmap de evolução](ROADMAP.md) acompanha as entregas concluídas, as próximas etapas e os critérios de conclusão de cada recurso.
+O [roadmap de evolução](ROADMAP.md) acompanha as entregas concluídas, as próximas etapas e os critérios de conclusão de cada recurso. O [fluxo de CI e release](docs/ci-and-release.md) explica a validação automatizada, candidatos assinados, smoke test e o checklist de publicação no Maven Central. Preparar um candidato não envia nem publica artefatos.
 
 Os [exemplos executáveis das etapas 0 a 7](docs/demo-examples.md) ampliam o demo com produtos, reservas, chamados, artigos, estoque, preferências, carrinho, livros, dispositivos e importações. Após iniciar o ambiente, execute `.\scripts\run-demo-examples.ps1` ou selecione um item, por exemplo `.\scripts\run-demo-examples.ps1 -Scenario 3.2.1`. Cada roteiro verifica seus resultados e limpa seus próprios dados; há APIs em `/examples/products`, `/examples/stock` e `/examples/imports`.
 
@@ -45,12 +45,22 @@ O volume `datadam-spring-data_datadam-data` preserva os documentos e índices. `
 
 ## Usar a biblioteca em outra aplicação
 
-`mvn install` instala o POM pai e a biblioteca no repositório Maven local. Não há publicação remota automática.
+`mvn install` instala o parent e os três artefatos no Maven local. Para instalar somente a biblioteca e validar seu consumo externo:
+
+```powershell
+mvn -B -ntp -pl datadam-spring-boot-starter -am install
+.\scripts\verify-library-artifacts.ps1
+.\scripts\verify-consumer.ps1
+```
+
+Para aplicações Boot, use o starter. Ele substitui a dependência direta no núcleo usada pelos exemplos anteriores deste SNAPSHOT:
+
+Desde 09/11/2026, o `groupId` é `com.anlohse.datadam` e os pacotes Java são `com.anlohse.datadam.*`. Ao atualizar de uma cópia anterior, substitua as dependências `io.datadam:*` e os imports/nomes de classes `io.datadam.*` pelos novos nomes. Os artifactIds permanecem iguais.
 
 ```xml
 <dependency>
-  <groupId>io.datadam</groupId>
-  <artifactId>spring-data-datadam</artifactId>
+  <groupId>com.anlohse.datadam</groupId>
+  <artifactId>datadam-spring-boot-starter</artifactId>
   <version>0.1.0-SNAPSHOT</version>
 </dependency>
 ```
@@ -62,6 +72,8 @@ A aplicação consumidora deve gerenciar dependências com Spring Boot 3.5.x (es
 @EnableDatadamRepositories(basePackageClasses = CustomerRepository.class)
 public class Application { /* main padrão SpringApplication.run */ }
 ```
+
+O [consumidor independente](examples/consumer-boot/README.md) tem POM próprio, fora do reactor, e executa um fluxo real contra Datadam com schema e credenciais separados. Para Spring sem Boot, use somente `spring-data-datadam` e configure os beans manualmente. A [API pública e política de compatibilidade](docs/public-api-and-compatibility.md) descreve essa divisão, migração, artefatos de fontes/Javadoc e limites. A versão continua `0.1.0-SNAPSHOT`; publicação remota e release pertencem ao item 8.2.
 
 ```yaml
 datadam:
@@ -81,7 +93,7 @@ O item 7.2 valida reinício, saturação, quedas/timeout com escritas de resulta
 
 ## Modelar entidade e índices
 
-O arquivo `datadam-demo/src/main/java/io/datadam/demo/Customer.java` é o exemplo completo. Cada entidade precisa de `@DatadamDocument(prefix = "...")` e exatamente um campo `@Id` do Spring Data, inclusive em records. O ID pode ser atribuído pela aplicação ou gerado ao salvar com `@DatadamGeneratedId`. As chaves são `prefix + id`; use prefixos exclusivos e sem sobreposição entre tipos.
+O arquivo `datadam-demo/src/main/java/com/anlohse/datadam/demo/Customer.java` é o exemplo completo. Cada entidade precisa de `@DatadamDocument(prefix = "...")` e exatamente um campo `@Id` do Spring Data, inclusive em records. O ID pode ser atribuído pela aplicação ou gerado ao salvar com `@DatadamGeneratedId`. As chaves são `prefix + id`; use prefixos exclusivos e sem sobreposição entre tipos.
 
 ```java
 @DatadamDocument(prefix = "demo:customer:")

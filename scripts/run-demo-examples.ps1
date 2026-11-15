@@ -14,11 +14,11 @@ try {
         # Explicit opt-in to the local Docker development credentials; no remote defaults.
         if (-not $env:DATADAM_ADMIN_PASSWORD) { $env:DATADAM_ADMIN_PASSWORD = 'local-schema-password' }
         if ($Scenario -ne '6.1.1') {
-            & java '-Dloader.main=io.datadam.demo.SchemaApplication' -cp $jar org.springframework.boot.loader.launch.PropertiesLauncher
+            & java '-Dloader.main=com.anlohse.datadam.demo.SchemaApplication' -cp $jar org.springframework.boot.loader.launch.PropertiesLauncher
             if ($LASTEXITCODE -ne 0) { throw 'Example schema initialization failed' }
         }
         & java '-Dexamples.local-credentials=true' "-Dexamples.scenario=$Scenario" "-Dexamples.volume=$Count" `
-            '-Dloader.main=io.datadam.demo.examples.DemoExamplesApplication' -cp $jar org.springframework.boot.loader.launch.PropertiesLauncher
+            '-Dloader.main=com.anlohse.datadam.demo.examples.DemoExamplesApplication' -cp $jar org.springframework.boot.loader.launch.PropertiesLauncher
         if ($LASTEXITCODE -ne 0) { throw "Example $Scenario failed" }
     }
     if ($Scenario -in @('all','7.2.1')) { & (Join-Path $PSScriptRoot 'run-example-failures.ps1') }

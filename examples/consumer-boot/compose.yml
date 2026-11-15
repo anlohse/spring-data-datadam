@@ -1,0 +1,12 @@
+name: datadam-consumer
+services:
+  datadam:
+    image: ${DATADAM_IMAGE:-datadam:spring-data-e2e2c0ae4e92}
+    ports:
+      - "127.0.0.1:6381:6379"
+    volumes:
+      - consumer-data:/var/lib/datadam
+      - ./docker/datadam.conf:/etc/datadam/consumer.conf:ro
+    entrypoint: ["datadam", "/etc/datadam/consumer.conf"]
+volumes:
+  consumer-data:
