@@ -1,31 +1,31 @@
-# Consultas derivadas: operadores e limites
+# Derived queries — operators and limits
 
-Métodos sem `@IdxQuery`/`@FtQuery` são compilados pelo `PartTree` do Spring Data em consultas nativas. Os nomes usam propriedades Java; Jackson resolve o caminho persistido e o schema fornece o alias nativo. Todos os filtros, limites e ordenações são executados no Datadam. A biblioteca não filtra páginas em memória.
+Methods without `@IdxQuery`/`@FtQuery` are compiled by `PartTree` Spring Data in native queries. Names use Java properties; Jackson resolves the persistent path and the schema provides the native alias. All filters, limits and ordinations are executed in Datadam. The library does not filter pages in memory.
 
-## Matriz de operadores
+## Operator matrix
 
-| Família Spring Data | Tipo da propriedade | IDX | FT | Contrato |
+| Spring Data family | Property type | IDX | FT | Contract |
 |---|---|---|---|---|
-| Sem sufixo, `Is`, `Equals` | String, enum, boolean, número | Sim | Sim | Igualdade; TAG escalar exato, NUMERIC conforme a representação numérica nativa |
-| `Between` | Número | Sim | Sim | Ambos os limites inclusivos |
-| `GreaterThan`, `GreaterThanEqual`, `LessThan`, `LessThanEqual` | Número | Sim | Sim | Limites exclusivos/inclusivos correspondentes |
-| `True`, `False` | Boolean | Sim | Sim | Igualdade TAG escalar |
-| `In` | Escalar | Não | Sim | União de igualdades; Collection ou array não vazio |
-| `StartingWith`, `StartsWith`, `IsStartingWith` | String | Sim | Sim | **Novo em 5.2:** prefixo literal do campo inteiro |
-| `Not`, `IsNot` | Número | Não | Sim | **Novo em 5.2:** presença NUMERIC e diferença do valor |
-| `NotIn`, `IsNotIn` | Número | Não | Sim | **Novo em 5.2:** presença NUMERIC e exclusão da união de valores |
-| `Not`, `NotIn` | String, enum, boolean | Não | Adiado | Falta teste de presença TAG que preserve os casos vazio/ausente/null |
-| `IgnoreCase`, `AllIgnoreCase` | String | Não | Sim | TAG sem CASESENSITIVE; parâmetros ASCII; também se aplica a prefixos |
-| `And` | Predicados suportados | Sim | Sim | Interseção; todos os predicados precisam caber no mesmo índice |
-| `Or` | Predicados suportados | Não | Sim | União; grupos AND/OR preservados com parênteses |
-| `IsNull`, `IsNotNull` | Qualquer | Adiado | Adiado | Índices não representam de modo uniforme null, ausência e valores não indexáveis |
-| `Containing`, `EndingWith`, `Like`, `NotLike`, regex | String | Não | Não | Substring/sufixo/padrões não têm equivalente correto no subconjunto nativo atual |
-| `Before`, `After` | Datas | Não | Não | Não há conversão implícita de datas em NUMERIC; use uma propriedade numérica explícita |
-| `Near`, `Within`, buscas TEXT/GEO/VECTOR | Qualquer | Não | Não | Fora das capacidades implementadas pelo servidor |
+| No suffix, `Is`, `Equals` | String, enum, boolean, number | Yeah. | Yeah. | Equality; TAG exact scaling, NUMERIC according to native numerical representation |
+| `Between` | Number | Yeah. | Yeah. | Both inclusive limits |
+| `GreaterThan`, `GreaterThanEqual`, `LessThan`, `LessThanEqual` | Number | Yeah. | Yeah. | Corresponding exclusive/inclusive limits |
+| `True`, `False` | Boolean | Yeah. | Yeah. | Equality TAG Scalar |
+| `In` | Climb | No, I don't. | Yeah. | Union of equality; Collection or array not empty |
+| `StartingWith`, `StartsWith`, `IsStartingWith` | String | Yeah. | Yeah. | **New in 5.2:** whole field literal prefix |
+| `Not`, `IsNot` | Number | No, I don't. | Yeah. | **New in 5.2:** presence NUMERIC and difference in value |
+| `NotIn`, `IsNotIn` | Number | No, I don't. | Yeah. | **New in 5.2:** presence NUMERIC and exclusion of the union of values |
+| `Not`, `NotIn` | String, enum, boolean | No, I don't. | Deferred | Missing presence test TAG that preserves empty/absent/null cases |
+| `IgnoreCase`, `AllIgnoreCase` | String | No, I don't. | Yeah. | TAG without CASESENSITIVE. Parameters ASCII. Also applies to prefixes |
+| `And` | Supported Preachers | Yeah. | Yeah. | Intersection. All preachers need to fit in the same index |
+| `Or` | Supported Preachers | No, I don't. | Yeah. | Union. Groups AND/OR preserved with parentheses |
+| `IsNull`, `IsNotNull` | Any | Deferred | Deferred | Indices do not uniformly represent null, absence and non-indexable values |
+| `Containing`, `EndingWith`, `Like`, `NotLike`, regex | String | No, I don't. | No, I don't. | Substring/suffix/standards have no correct equivalent in the current native subset |
+| `Before`, `After` | Dates | No, I don't. | No, I don't. | There is no implicit date conversion in NUMERIC. Use an explicit numerical property |
+| `Near`, `Within`, searches TEXT/GEO/VECTOR | Any | No, I don't. | No, I don't. | Out of the capabilities implemented by the server |
 
-“Sim” exige schema compatível. Um método incompatível falha na criação do repositório; parâmetros inválidos ou ordem dinâmica incompatível falham antes de enviar a consulta. Projeções derivadas, exclusão derivada e parâmetros Limit/scrolling continuam recusados. Projeções fixas estão disponíveis em [consultas anotadas e na API programática](projections.md).
+A non-compatible method fails to create the repository. Invalid parameters or incompatible dynamic order fail before sending the query. Derived projections, derivative deletion and Limit/scrolling parameters remain rejected. Fixed projections are available in [annotated and programmatic queries API](projections.md).
 
-## Prefixos literais
+## Literal prefixes
 
 ```java
 Page<Customer> findByEmailStartingWithOrderByEmailAsc(String prefix, Pageable pageable);
@@ -34,43 +34,43 @@ Page<Customer> findByCityStartingWithAndAgeNotOrderByAgeAsc(
     String prefix, int excludedAge, Pageable pageable);
 ```
 
-IDX usa a faixa TAG `>= prefix` e `< sucessor(prefix)`, com argumentos RESP separados. O sucessor incrementa o último ponto Unicode incrementável e remove o sufixo máximo. A ordem por bytes UTF-8 preserva a ordem dos pontos Unicode; a faixa ignora a região de surrogates. Um prefixo composto somente por U+10FFFF não precisa de limite superior. Strings com surrogates isolados são recusadas.
+IDX uses the band TAG `>= prefix` and `< sucessor(prefix)`, with separate arguments RESP. The successor increases the last unbelievable Unicode point and removes the maximum suffix. The order bytes UTF-8 preserves the order of Unicode points. The band ignores the surrogate region. A prefix composed only by U+10FFFF does not need a upper limit. Strings with isolated surrogates are refused.
 
-FT usa `@alias:{$p0*}` com o valor separado em `PARAMS`. Somente o último `*`, escrito pelo compilador, é operador. Asteriscos, barras, chaves e pipes recebidos no parâmetro permanecem literais, sem interpolação ou escape construído pelo chamador.
+FT uses `@alias:{$p0*}` with the value separated in `PARAMS`. Only the last `*`, written by the compiler, is operator. Asterisks, bars, keys and pipes received in the parameter remain literal, without interpolation or escape built by the caller.
 
-Regras:
+Rules:
 
-- Prefixo null ou vazio é recusado. `StartingWith("")` não significa “todos”. Campos ausentes, null e vazios não correspondem a um prefixo não vazio.
-- A versão padrão diferencia maiúsculas. FT exige `caseSensitive=true`; `IgnoreCase` exige TAG sem CASESENSITIVE e valores ASCII, conforme o folding do servidor.
-- A TAG precisa representar o campo inteiro, sem separador. TAGs divididas em tokens não implementam `String.startsWith` do valor original.
-- IDX HASH sem separador suporta prefixos do campo inteiro, inclusive vírgulas literais. FT HASH divide TAG por vírgula por padrão; esses campos são recusados para derivação escalar, inclusive prefixos e IgnoreCase.
-- O parser FT remove espaços/tabs iniciais de uma TAG. Prefixos que começam por esses caracteres são recusados quando o plano escolhido é FT; IDX preserva-os. Não há fallback automático após a seleção do plano. Espaços finais do prefixo são preservados.
-- A ordenação IDX segue a tupla do índice. Um prefixo não fixa o campo por igualdade: num índice `(city, age)`, ordenar somente por age após um prefixo de city requer outro plano, como FT com ordenação numérica. FT aceita um campo de ordenação.
+- Invalid or empty prefix is refused. `StartingWith("")` does not mean all. Absent fields, null and empty do not correspond to a non-empty prefix.
+- The standard version differs capitals. FT requires `caseSensitive=true`; `IgnoreCase` requires TAG without CASESENSITIVE and values ASCII, according to the server folder.
+- The TAG must represent the entire field, without separator. TAGs divided into tokens do not implement `String.startsWith` of the original value.
+- IDX HASH without separator supports whole field prefixes, including literal commas. FT HASH divides TAG per comma by default. These fields are refused for scalar derivation, including prefixes and IgnoreCase.
+- The FT parser removes initial spaces/tabs from a TAG. Prefixes that begin with these characters are refused when the chosen plane is FT; IDX preserves them. There is no automatic failure after the plan selection. Final spaces of the prefix are preserved.
+- The ordination IDX follows the tuple of the index. A prefix does not fix the field by equality: in an index `(city, age)`, ordering only by age after a city prefix requires another plane, such as FT with numerical ordination. FT accepts an ordination field.
 
-## Negação numérica e campos ausentes
+## Numeric negation and missing fields
 
 ```java
 Page<Customer> findByAgeNot(int excludedAge, Pageable pageable);
 Page<Customer> findByAgeNotIn(Collection<Integer> excludedAges, Pageable pageable);
 ```
 
-`Not(25)` compila para `(@age:[-inf +inf] -@age:[$p0 $p0])`. `NotIn([20,30])` compila para `(@age:[-inf +inf] -(@age:[$p0 $p0] | @age:[$p1 $p1]))`.
+`Not(25)` compile for `(@age:[-inf +inf] -@age:[$p0 $p0])`. `NotIn([20,30])` compile for `(@age:[-inf +inf] -(@age:[$p0 $p0] | @age:[$p1 $p1]))`.
 
-A faixa de presença é necessária: a negação FT isolada também pode incluir documentos sem o campo. O contrato entregue inclui somente documentos com valor NUMERIC indexável diferente dos valores excluídos. Ausência, JSON null e valores inválidos não passam. Essa regra é aplicada antes da paginação e da contagem, em JSON e HASH.
+The presence range is necessary: the isolated FT denial may also include documents without the field. The contract delivered includes only documents with an indexable value NUMERIC different from the excluded values. Absence, JSON null and invalid values do not pass. This rule is applied before pagination and counting, in JSON and HASH.
 
-Valores null, membros null, coleção/array vazio e números NaN/infinitos são recusados. `NotIn` aceita Collection e arrays, inclusive primitivos. A comparação segue a representação numérica do índice Datadam; não acrescenta precisão decimal ou de int64 à representação nativa.
+Null values, null members, empty collection/array and NaN/infinite numbers are refused. `NotIn` accepts Collection and arrays, including primitives. Comparison follows the numerical representation of the Datadam index. Does not add decimal or int64 accuracy to the native representation.
 
-Negação de TAG permanece adiada. Um complemento de igualdade não oferece o mesmo contrato de presença para null, ausência e String vazia. A biblioteca rejeita esses métodos na inicialização, sem executar consultas complementares ou filtrar resultados em memória.
+Denial of TAG remains delayed. An equality supplement does not offer the same contract of presence for null, absence and empty String. The library rejects these methods in initialization, without performing complementary queries or filtering results in memory.
 
-## Resultados, totais e schema
+## Results, totals, and schema
 
-List, Page, Slice, entidade, Optional, count, exists e Top/First mantêm os contratos existentes. Count/exists não materializam entidades; Slice busca um item adicional; Top/First usa limite nativo. Top/First não combina com Pageable/count/exists. Resultado único não aceita Pageable.
+List, Page, Slice, entity, Optional, count, exist and Top/First keep existing contracts. Count/exists do not materialize entities; Slice searches for an additional item; Top/First uses native limit. Top/First does not match Pageable/count/exists. Unique result does not accept Pageable.
 
-Page IDX usa QUERY e COUNT separados: sob concorrência, conteúdo e total podem refletir momentos distintos. FT retorna conteúdo e total no mesmo comando. Todos os campos de um IDX composto precisam ser exigidos pelos predicados para não perder documentos com campos ausentes. Nenhuma consulta derivada cria ou migra índices.
+Page IDX uses QUERY and COUNT separately: under competition, content and total can reflect different moments. FT returns content and total in the same command. All fields of a compound IDX need to be required by the predicates in order not to lose documents with missing fields. No derived query creates or migrates indexes.
 
-## Aplicação de exemplo e validação
+## Demo application and validation
 
-Os repositórios `CustomerRepository` e `HashCustomerRepository` expõem prefixos por email e negação por idade. `CustomerRepository` demonstra também prefixos FT, IgnoreCase e combinação com negação e OR. Os endpoints aceitam paginação Spring:
+Repositories `CustomerRepository` and `HashCustomerRepository` display prefixes by email and age denial. `CustomerRepository` also show FT prefixes, IgnoreCase and combination with denial and OR. Endpoints accept Spring pagination:
 
 ```powershell
 Invoke-RestMethod 'http://localhost:8080/customer-queries/json/prefix?prefix=ana&page=0&size=10'
@@ -79,6 +79,6 @@ Invoke-RestMethod 'http://localhost:8080/customer-queries/json/age-not-in?exclud
 Invoke-RestMethod 'http://localhost:8080/customer-queries/hash/age-not-in?excluded=20,30&page=0&size=10'
 ```
 
-`DerivedOperatorsTest` verifica planos, parâmetros, aliases, limites Unicode e recusas antes de I/O. `DerivedOperatorsIntegrationIT` executa os operadores contra Datadam real no Docker, cobrindo JSON/HASH, caracteres literais, combinações, ausências, ordenação, totais, TTL e HTTP. Execute `scripts/run-local.ps1 -Restart -IntegrationTests -Background`.
+`DerivedOperatorsTest` checks plans, parameters, aliases, Unicode limits and refusals before I/O. `DerivedOperatorsIntegrationIT` executes the operators against Datadam real in Docker, covering JSON/HASH, literal characters, combinations, absences, sorting, totals, TTL and HTTP. Execute `scripts/run-local.ps1 -Restart -IntegrationTests -Background`.
 
-Esta entrega usa os operadores IDX/FT existentes no servidor; não acrescenta uma extensão C++. As dependências de HREPLACE/RETURNJSON das etapas anteriores estão descritas em [server-patches](../server-patches/README.md).
+This delivery uses existing IDX/FT operators on the server. It does not add a C++ extension. The dependencies of HREPLACE/RETURNJSON of the previous steps are described in [Patches server](../server-patches/README.md).

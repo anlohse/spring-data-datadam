@@ -1,47 +1,47 @@
-# Falhas de transporte, TLS e ACL
+# Transport failures, TLS, and ACLs
 
-A entrega 7.2 amplia a validação com servidores Datadam reais e contêineres descartáveis. Os testes não pausam/reiniciam o serviço usado pela aplicação, não usam FLUSHALL e não alteram ACLs ou certificados do host. A correção de produção desta etapa habilita verificação de identidade do endpoint TLS no pool automático.
+Delivery 7.2 expands validation with actual Datadam servers and disposable containers. Tests do not pause/restart the service used by the application, do not use FLUSHALL and do not alter ACLs or host certificates. The production correction of this step enables endpoint identity verification TLS in the automatic pool.
 
-## Resultados incertos e ausência de repetição automática
+## Uncertain outcomes and retry behavior
 
-Quando uma conexão cai ou a resposta excede o timeout, a exceção pode ter o mesmo tipo em situações diferentes:
+When a connection falls or the answer exceeds the timeout, the exception may have the same type in different situations:
 
-| Ponto da falha no teste | O que o servidor recebeu | Resultado persistido |
+| Test failure point | What the server received | Persistent outcome |
 |---|---|---|
-| Proxy fecha antes de encaminhar JSON.NUMINCRBY | Nenhuma mutação | Contador permanece 0 |
-| Proxy recebe a resposta e a descarta | Uma mutação concluída | Contador passa a 1 |
-| Proxy retém a resposta após a execução e o cliente sofre timeout | Uma mutação concluída | Contador passa a 1 |
+| Proxy closes before forwarding JSON.NUMINCRBY | No mutations | Counter remains 0 |
+| Proxy receives the answer and discards | A completed mutation | Counter goes to 1 |
+| Proxy retains response after execution and client suffers timeout | A completed mutation | Counter goes to 1 |
 
-Os três cenários resultam em `DataAccessResourceFailureException` para o consumidor. O cliente **não pode inferir, somente pela exceção, se a escrita foi aplicada**. `connection_error` nas métricas também não resolve essa ambiguidade.
+The three scenarios result in `DataAccessResourceFailureException` for the consumer. The customer **can not infer, only by the exception, if the writing was applied** `connection_error` in the metrics also does not resolve this ambiguity.
 
-A biblioteca não repete gravações automaticamente. O teste conta as requisições efetivamente encaminhadas e confirma uma única tentativa. Repetir manualmente um incremento depois da perda da resposta pode incrementá-lo duas vezes. O mesmo cuidado vale para append/pop de arrays, scripts, operações em lote e comandos com efeitos externos de callbacks.
+The library does not repeat writes automatically. The test counts the requests actually forwarded and confirms a single attempt. Manually repeating an increase after loss of response can increase it twice. The same care applies to append/pop of arrays, scripts, batch operations and commands with external callback effects.
 
-Depois de um erro:
+After a mistake:
 
-1. Preserve a identificação da operação e evite repetição cega no cliente HTTP, job ou política genérica de retry.
-2. Consulte o estado atual por uma conexão utilizável e faça reconciliação conforme as regras do domínio. Sob concorrência, a simples leitura de um contador não identifica necessariamente qual operação foi aplicada.
-3. Se o domínio exigir repetição segura, modele uma chave de idempotência/deduplicação e a atomicidade necessária no servidor. A biblioteca não acrescenta essa garantia por conta própria.
-4. Para lotes, considere êxito parcial: operações anteriores podem ter sido confirmadas antes da falha.
+1. Keep identification of the operation and avoid blind repetition in the customer HTTP, job or generic retry policy.
+2. Consult the current state for a usable connection and make reconciliation according to the rules of the domain. Under competition, the simple reading of an accountant does not necessarily identify which operation was applied.
+3. If the domain requires secure repetition, model an idempotence/deduplication key and the required atomity on the server. The library does not add this warranty on its own.
+4. For lots, consider partial success: previous operations may have been confirmed before failure.
 
-Na falha de aquisição antes do envio de um comando, esse comando ainda não foi enviado por essa chamada de transporte. Entretanto, uma operação de repositório pode já ter executado comandos anteriores; não generalize essa observação para rollback da operação inteira.
+In the failure to purchase before sending a command, this command has not yet been sent by this transport call. However, a repository operation may have already executed previous commands. Do not generalize this observation for rollback of the entire operation.
 
-## Versão e confirmação perdida
+## Versioning and lost acknowledgments
 
-O teste de save com `@Version` derruba a resposta do EVAL **depois** de o Datadam confirmar a execução. O documento no servidor passa de versão 0 para 1; o objeto recebido pelo cliente continua na versão anterior, pois não houve confirmação de sucesso. A gravação não é repetida internamente.
+The save test with `@Version` drops the response of EVAL **later** from Datadam to confirm the execution. The document on the server goes from version 0 to 1. The object received by the client continues in the previous version because there was no confirmation of success. The recording is not repeated internally.
 
-Uma repetição explícita com a versão antiga falha por optimistic locking, e uma nova leitura encontra a gravação original. Isso ajuda a detectar estado desatualizado; não transforma todas as operações em idempotentes nem desfaz callbacks já executados. Reconcilie o objeto e a intenção da operação antes de decidir se deve gravar novamente.
+An explicit repetition with the old version fails by optimistic localing, and a new reading finds the original recording. This helps to detect outdated state. It does not transform all operations into idempotents or undo calls already executed. Reconcile the object and intent of the operation before deciding whether to record again.
 
-## Reinício, conexão quebrada e pool
+## Restarts, broken connections, and pooling
 
-`TransportFailuresIT` aquece um pool, reinicia seu servidor descartável e executa novamente comandos de negócio. Com `validate-connection=true`, o empréstimo testa a conexão ociosa, descarta a conexão encerrada pelo reinício e usa outra. Isso ocorre antes do envio do comando de negócio; não é uma repetição de uma gravação já enviada.
+`TransportFailuresIT` warms a pool, restarts your disposable server and executes business commands again. With `validate-connection=true`, the loan tests the idle connection, discards the connection closed by restart and uses another. This occurs before sending the business command. It is not a repeat of a recording already sent.
 
-Depois de erro durante a leitura da resposta, os testes verificam também que a conexão quebrada não impede o próximo PING. Essa recuperação de conectividade não informa o resultado da mutação que perdeu a resposta.
+After error while reading the response, the tests also check that the broken connection does not prevent the next PING. This connectivity recovery does not inform the result of the mutation that lost the response.
 
-O teste concorrente de saturação ocupa a única conexão de um pool próprio. Uma chamada espera e prossegue quando ela é devolvida; outra, sem devolução, falha dentro do limite configurado. Ao final, o contador de espera volta a zero e o pool continua utilizável. O health check sob saturação já é coberto pela entrega 7.1.
+The concurrent saturation test occupies the only connection of a pool of its own. One call waits and continues when it is returned. Another, without return, fails within the set limit. In the end, the waiting counter returns to zero and the pool remains usable. The health check under saturation is already covered by the delivery 7.1.
 
-Configure conexão, leitura e espera conforme [diagnóstico operacional](library-diagnostics.md). Max-wait limita a espera pelo pool; não é um prazo único de autenticação, validação, comando e operação inteira de repositório. Os testes usam folga de tempo para escalonamento do SO; não são benchmarks nem garantias de latência.
+Configure connection, reading and waiting according to [operational diagnosis](library-diagnostics.md). Max-wait limits waiting for the pool. It is not a single time frame for authentication, validation, command and entire repository operation. Tests use time slot for SO scaling. They are neither benchmarks nor latency guarantees.
 
-## TLS: cadeia, validade e identidade
+## TLS chain, validity, and identity
 
 ```yaml
 datadam:
@@ -50,69 +50,69 @@ datadam:
   ssl: true
 ```
 
-O pool automático usa o truststore JSSE da JVM e configura `SSLParameters.endpointIdentificationAlgorithm=HTTPS`. O nome/IP configurado precisa corresponder ao certificado do servidor. Apesar do nome do algoritmo, o protocolo transportado continua sendo RESP sobre TLS, não HTTP.
+The automatic pool uses the JVM truststore JSSE and configures `SSLParameters.endpointIdentificationAlgorithm=HTTPS`. The configured name/IP needs to match the server certificate. Despite the algorithm name, the transported protocol remains RESP over TLS, not HTTP.
 
-**Mudança de comportamento:** habilitar apenas criptografia sem validar o nome do endpoint não era suficiente na configuração anterior. A partir desta entrega, certificados de outra identidade são recusados, mesmo que sua CA seja confiável. Ajuste host e SAN do certificado ao atualizar; não desative a validação para contornar a recusa. Um pool externo fornecido pela aplicação continua responsável por sua própria configuração TLS.
+**Behaviour change:** enable encryption only without validating the name of the endpoint was not sufficient in the previous configuration. From this delivery, certificates of another identity are refused, even if their CA is reliable. Host adjustment and SAN of the certificate when updating. Do not disable validation to circumvent the refusal. An external pool provided by the application continues to be responsible for its own configuration TLS.
 
-Para uma CA privada, configure um truststore apropriado antes de iniciar a JVM, por exemplo com `javax.net.ssl.trustStore`, `javax.net.ssl.trustStoreType` e `javax.net.ssl.trustStorePassword`. Mantenha senhas e chaves na configuração segura do ambiente. Não é instalado um trust manager que aceite qualquer certificado, nem há opção da biblioteca para desligar a verificação de nome.
+For a private CA, set up an appropriate truststore before starting JVM, for example with `javax.net.ssl.trustStore`, `javax.net.ssl.trustStoreType` and `javax.net.ssl.trustStorePassword`. Keep passwords and keys in the safe setting of the environment. No trust manager is installed that accepts any certificate, nor is there library option to shut down the name check.
 
-`TlsSecurityIT` gera CA e certificados efêmeros com `keytool`, disponível no JDK, e testa:
+`TlsSecurityIT` generates CA and ephemeral certificates with `keytool`, available in JDK, and tests:
 
-| Cenário | Truststore do cliente | Certificado do servidor | Resultado exigido |
+| Scenario | Customer Truststore | Server Certificate | Result required |
 |---|---|---|---|
-| Válido | CA correta | Válido, SAN localhost/127.0.0.1 | PING autenticado responde PONG |
-| CA desconhecida | Outra CA | Mesmo certificado válido | Falha de handshake |
-| Identidade incorreta | CA correta | SAN wrong.invalid | Falha de handshake |
-| Expirado | CA correta | SAN correto, validade encerrada | Falha de handshake |
+| Valid | Correct CA | Valid, SAN localhost/127.0.0.1 | PING authenticated reply PONG |
+| Unknown AC | Other CA | Same valid certificate | Handshake failure |
+| Incorrect identity | Correct CA | SAN wrong.invalid | Handshake failure |
+| Expired | Correct CA | SAN correct, validity closed | Handshake failure |
 
-Cliente e servidor TLS rodam no Docker, compartilhando a rede do contêiner. O cliente usa as classes/dependências realmente compiladas pelo Maven, em uma JVM separada com truststore próprio. Isso evita que inspeção HTTPS/TLS do host substitua o certificado usado no teste; nesta máquina, o Avast de fato substituiu o certificado de localhost durante a primeira tentativa fora do Docker.
+Client and server TLS run in Docker, sharing the container network. The client uses the classes/dependencies actually compiled by Maven, in a JVM separate with its own truststore. This prevents inspection HTTPS/TLS of the host from replacing the certificate used in the test. In this machine, Avast actually replaced the localhost certificate during the first attempt outside of Docker.
 
-Os testes não alteram o antivírus, a confiança global da JVM de testes ou o repositório de certificados do Windows. A chave da CA permanece somente no diretório temporário do processo de testes; o servidor recebe apenas certificado/chave de servidor e o cliente somente truststores públicos. Os arquivos e contêineres são descartados ao final.
+The tests do not alter the antivirus, the overall trust of JVM tests or the Windows certificate repository. The CA key remains only in the temporary directory of the test process. The server receives only server certificate/key and the client only public trusters. The files and containers are discarded at the end.
 
-O cenário usa autenticação ACL sobre TLS e `tls-auth-clients no`: valida autenticação do **servidor** e senha do cliente. Não constitui teste de mTLS, rotação de certificados, todos os provedores JSSE ou todas as versões TLS. Esses comportamentos não são inferidos pelos testes desta entrega.
+The scenario uses authentication ACL over TLS and `tls-auth-clients no`: valid authentication of **server** and customer password. It does not constitute mTLS test, certificate rotation, all providers JSSE or all versions TLS. These behaviors are not inferred by the tests of this delivery.
 
-## Matriz ACL ampliada
+## Expanded ACL matrix
 
-`AclSecurityIT` cria seu próprcom.anlohse.datadam com protected-mode habilitado, usuário default desligado e três papéis:
+`AclSecurityIT` starts a dedicated Datadam instance with protected mode enabled, the default user disabled, and three roles:
 
-| Papel | Dados | Consultas | Administração |
+| Paper | Data | Consultations | Administration |
 |---|---|---|---|
-| writer | JSON/HASH no prefixo secure:* | Sem permissões de índices | Sem DDL/metadados de índices |
-| reader | Somente chaves visible de JSON/HASH | IDX/FT restritos às chaves legíveis; EVAL autorizado somente para testar checagens internas | Metadados explicitamente permitidos, sem DDL |
-| schema | Sem leitura/escrita de documentos | Sem consultas a documentos | CREATE/INFO/LIST/DROP de índices |
+| Writer | JSON/HASH in the secure prefix:* | No index permissions | No DDL/index metadata |
+| reader | Only visible keys of JSON/HASH | IDX/FT restricted to readable keys; EVAL authorised only to test internal checks | Metadates explicitly permitted, without DDL |
+| schema | No reading/writing of documents | Without consulting documents | CREATE/INFO/LIST/DROP indexes |
 
-São verificados:
+The following shall be verified:
 
-- Autenticação obrigatória e recusa de escrita fora do prefixo do writer.
-- Leitura de chaves permitidas e recusa de chaves ocultas em JSON e HASH.
-- Recusa de JSON.SET, HREPLACE e DEL pelo reader, mesmo em chaves legíveis.
-- Conteúdo, projeção nativa e totais IDX/FT restritos às chaves autorizadas nos dois formatos.
-- Recusa de escrita ou leitura de chave oculta por EVAL: autorizar o script não dispensa a ACL dos comandos/chaves chamados dentro dele.
-- Separação entre administração de índices e acesso a documentos; DROP de índice mantém documentos.
+- Mandatory authentication and writing refusal outside the prefix of the writer.
+- Reading of permitted keys and refusal of hidden keys in JSON and HASH.
+- Rejection of JSON.SET, HREPLACE and DEL by the reader, even in readable keys.
+- Content, native and total projection IDX/FT restricted to the authorized keys in both formats.
+- Refusal of writing or reading hidden key by EVAL: authorising the script does not exempt ACL from the commands/keys called within it.
+- Separation between index administration and access to documents; DROP index maintains documents.
 
-Metadados IDX.INFO/FT.INFO são globais: um reader que recebeu FT.INFO vê contagens de todas as chaves do índice, embora suas consultas retornem apenas as chaves autorizadas. O teste afirma essa diferença; não promete isolamento de metadados por padrão de chave. Privilégios administrativos de índice também não são limitados pelo nome do índice via padrões de chaves.
+Metadatas IDX.INFO/FT.INFO are global: a reader who received FT.INFO sees counts of all the index keys, although his queries return only the authorized keys. The test affirms this difference. It does not promise isolation of metadata by key pattern. Index administrative privileges are also not limited by the index name via key patterns.
 
-Esses usuários existem somente no contêiner descartável. A ACL da aplicação local não é ampliada para executar os testes. As suítes anteriores continuam cobrindo usuários sem JSON.GET/HGETALL, escrita com TTL negado, callbacks, UNIQUE e as credenciais separadas de migração.
+These users exist only in the disposable container. The ACL local application is not expanded to run the tests. Previous suites continue to cover users without JSON.GET/HGETALL, written with TTL denied, callbacks, UNIQUE and separate migration credentials.
 
-## Como reproduzir
+## Reproduce the tests
 
-Pré-requisitos: JDK com keytool, Maven, Docker CLI/Desktop e a imagem do Datadam do projeto. Desde a entrega 7.3, revisões e digests ficam em [config/test-images.properties](../config/test-images.properties); o servidor usa uma revisão C++ explícita e as JVMs usam digests. A JVM TLS isolada pode ser indicada por `DATADAM_TLS_JAVA_IMAGE` e precisa executar bytecode Java 17 e fornecer o comando java. Veja a [matriz de compatibilidade](compatibility-and-performance.md) para o escopo validado.
+Prerequisites: JDK with keytool, Maven, Docker CLI/Desktop and the project Datadam image. Since delivery 7.3, revisions and digests are in [config/test-images.properties](../config/test-images.properties). The server uses an explicit C++ revision and JVMs use digests. The JVM TLS isolated can be indicated by `DATADAM_TLS_JAVA_IMAGE` and needs to run bytecode Java 17 and provide the java command. See [compatibility matrix](compatibility-and-performance.md) for the validated scope.
 
 ```powershell
 ./scripts/run-local.ps1 -BuildDatadam -Restart -IntegrationTests -Background
 ```
 
-O script prepara a imagem da JVM TLS quando ela ainda não existe. Para executar Maven diretamente:
+The script prepares the image of JVM TLS when it does not yet exist. To run Maven directly:
 
 ```powershell
 ./scripts/build-test-image.ps1
 docker compose --env-file config/test-images.properties up -d --no-build
-# Prepare as imagens Java do contrato, ou use run-local.ps1 -IntegrationTests.
+# Prepare the Java images of the contract, or use run-local.ps1 -IntegrationTests.
 mvn verify -Pintegration
 ```
 
-Se a aplicação estiver usando o JAR no Windows, pare/reinicie-a com o script antes de reempacotar. Para uma execução focada, use `-Dit.test=TransportFailuresIT,TlsSecurityIT,AclSecurityIT` e `-Dfailsafe.failIfNoSpecifiedTests=false` no reactor. A execução padrão não faz skip dos testes se Docker, imagem, chave/certificado ou handshake não estiverem disponíveis: falha explicitamente.
+If the application is using JAR on Windows, stop/restart it with the script before repackaging. For a focused execution, use `-Dit.test=TransportFailuresIT,TlsSecurityIT,AclSecurityIT` and `-Dfailsafe.failIfNoSpecifiedTests=false` on the reactor. The default execution does not skip tests if Docker, image, key/certified or handshake are not available: explicitly fails.
 
-Os contêineres têm nomes UUID próprios e portas aleatórias publicadas somente em loopback. O helper usa uma porta explicitamente reservada para que o endereço não mude no reinício. O proxy de falhas tem limites de framing e encerra sockets/workers ao final. Não serve como proxy de produção nem modelo de transporte da biblioteca.
+Containers have their own names UUID and random doors published only in loopback. The helper uses an explicitly reserved door so that the address does not change at restart. The fault proxy has frame limits and closes sockets/workers at the end. It does not serve as a production proxy or library transport model.
 
-Referências primárias: [SSLParameters e identificação de endpoint](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/javax/net/ssl/SSLParameters.html#setEndpointIdentificationAlgorithm(java.lang.String)), além de `docs/security.md` e `docs/secondary-indexes.md` no código Datadam usado pelos testes.
+Primary references: [SSLParameters and Endpoint Identification](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/javax/net/ssl/SSLParameters.html#setEndpointIdentificationAlgorithm(java.lang.String)), in addition to `docs/security.md` and `docs/secondary-indexes.md` in the Datadam code used by the tests.

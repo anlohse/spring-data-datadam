@@ -1,6 +1,6 @@
-# Mapeamento e CRUD HASH
+# HASH mapping and CRUD
 
-O item 4.1 permite escolher o formato de persistência por entidade. JSON continua sendo o padrão, sem mudança nas entidades existentes:
+The item 4.1 allows you to choose the persistence format per entity. JSON remains the default, without changing existing entities:
 
 ```java
 @DatadamDocument(prefix = "note:hash:", storage = DatadamStorage.HASH, timeToLive = 300)
@@ -8,93 +8,93 @@ public record Note(@Id @DatadamGeneratedId String id, String text, @Version Long
 
 public interface NoteRepository extends DatadamRepository<Note, String> {}
 
-Note first = repository.save(new Note(null, "original", null)); // HASH, versão 0
-Note next = repository.save(new Note(first.id(), null, first.version())); // remove o campo text, versão 1
-repository.delete(next); // exige a versão atual
+Note first = repository.save(new Note(null, "original", null)); // HASH, version 0
+Note next = repository.save(new Note(first.id(), null, first.version())); // remove text field, version 1
+repository.delete(next); // requires the current version
 ```
 
-Use prefixos exclusivos por tipo/formato. Alterar a anotação de uma entidade já persistida não converte suas chaves. Ler/salvar HASH sobre uma chave JSON gera WRONGTYPE e preserva o valor existente. A migração deve usar outro prefixo ou uma conversão explícita e coordenada; não há migração automática.
+Use unique prefixes by type/format. Change the annotation of an already persistent entity does not convert its keys. Read/save HASH on a key JSON generates WRONGTYPE and preserves the existing value. Migration must use another prefix or an explicit and coordinated conversion. There is no automatic migration.
 
-## Requisito do servidor
+## Server requirement
 
-A gravação HASH requer **HREPLACE**, uma extensão Datadam adicionada nesta entrega, junto da correção do mecanismo de undo de transações HASH. O código C++ foi alterado e a imagem local foi reconstruída. O patch reproduzível está em [server-patches/hreplace.patch](../server-patches/hreplace.patch), com instruções em [server-patches/README.md](../server-patches/README.md).
+The recording HASH requires **HREPLACE**, a Datadam extension added in this delivery, along with the correction of the transaction wave mechanism HASH. The C++ code was changed and the local image was reconstructed. The reproducible patch is in [server-patches/hreplace.patch](../server-patches/hreplace.patch), with instructions in [Patches server/README.md](../server-patches/README.md).
 
-HREPLACE substitui o conjunto completo de campos em um único KeyTxn, preserva expiração, recusa outro tipo de chave e valida UNIQUE sobre o estado final. Não é um comando Redis padrão. A biblioteca não simula esse contrato com HSET seguido de HDEL nem apaga a chave antes de recriar: essas sequências podem expor estado parcial, perder TTL ou falhar por uma combinação intermediária de campos que não existe no resultado final.
+HREPLACE replaces the complete set of fields in a single KeyTxn, preserves expiration, rejects another type of key and validates UNIQUE over the final state. It is not a standard Redis command. The library does not simulate this contract with HSET followed by HDEL or deletes the key before re-creation: these sequences may expose partial state, lose TTL or fail by an intermediate combination of fields that does not exist in the final result.
 
-Servidores sem a extensão recusam a escrita sem substituí-la por um caminho menos seguro. Entidades JSON continuam usando os comandos anteriores. Para o ambiente local, execute `./scripts/run-local.ps1 -BuildDatadam -Restart -IntegrationTests -Background`.
+Servers without extension refuse writing without replacing it with a less secure path. Entities JSON continue to use the previous commands. For the local environment, run `./scripts/run-local.ps1 -BuildDatadam -Restart -IntegrationTests -Background`.
 
-## Conversão dos campos
+## Field conversion
 
-Cada propriedade serializada na raiz vira um campo HASH com o nome Jackson, incluindo JsonProperty/naming strategy. Não são usados campo `_class`, flattening de objetos ou chaves auxiliares por entidade.
+Each serialized property on the root turns a field HASH with the name Jackson, including JsonProperty/naming strategy. Field `_class`, flattening of objects or auxiliary keys per entity are not used.
 
-| Valor Java | Campo HASH |
+| Java value | Field HASH |
 |---|---|
-| String/char | Texto sem aspas JSON; escapes são do conteúdo real |
-| Números e booleanos | Representação textual do valor JSON, por exemplo `42`, `12.50`, `true` |
-| Enum padrão | Nome textual, por exemplo `ACTIVE` |
-| UUID | Texto UUID |
-| Datas/horas/Duration | Representação Jackson configurada, textual ou numérica; os módulos da aplicação são mantidos |
-| Objeto/record aninhado | JSON do objeto dentro de um único campo HASH |
-| Lista, array ou Map | JSON completo dentro de um único campo HASH, preservando a estrutura |
-| byte[] | Base64 de Jackson, em um campo textual |
-| null na raiz | Campo omitido/removido |
+| String/char | Text without quotes JSON. Escapes are from actual content |
+| Numbers and Booleans | Textual representation of value JSON, e.g. `42`, `12.50`, `true` |
+| Standard Enum | Text name, e.g. `ACTIVE` |
+| UUID | Text UUID |
+| Dates/hours/Duration | Jackson representation configured, textual or numerical. Application modules maintained |
+| Subject matter/ringed record | JSON of the object within a single field HASH |
+| List, array or Map | JSON complete within a single field HASH, preserving the structure |
+| byte[] | Jackson's Base64, in a Text Field |
+| null in the root | Field omitted/removed |
 
-A leitura usa o tipo declarado da propriedade para reconstruir o valor. Uma String literal `"null"` continua sendo o texto `null`, diferente de um campo omitido. Números integrais e BigDecimal preservam precisão; o codec evita converter decimais para double durante a passagem pelo JSON. Objetos/coleções aninhados não ficam disponíveis como campos HASH separados; seus caminhos internos ainda pertencem ao JSON armazenado naquele campo.
+The reading uses the declared type of the property to reconstruct the value. A literal string `"null"` remains the text `null`, different from an omitted field. Integral and BigDecimal numbers preserve accuracy. The codec avoids converting decimals to double during the passage through JSON. Ringed objects/collections are not available as separate fields HASH. Their internal paths still belong to the JSON stored in that field.
 
-Ao salvar, o conjunto de campos é substituído integralmente. Campos antes presentes e agora null, excluídos pela configuração Jackson ou removidos do modelo deixam de existir, inclusive campos externos que não sejam reserializados. Campo ausente na leitura segue a configuração Jackson: normalmente null em wrappers/referências e zero/false em primitivos; construtores ou opções mais restritas podem recusar a ausência.
+When saving, the set of fields is replaced in its entirety. Fields previously present and now null, excluded by Jackson configuration or removed from the model cease to exist, including external fields that are not reserialized. Field absent in the reading follows Jackson configuration: normally null in wrappers/references and zero/false in primitives. Constructors or more restricted options may refuse absence.
 
-Propriedades da raiz com tipo Object são recusadas, pois uma string nativa como `true` não permite distinguir String de boolean sem metadados adicionais. Declare o tipo concreto, Map ou List. char[] na raiz também é recusado por ter representações Jackson ambíguas entre texto e array; use String ou List de Character. Valores dinâmicos dentro de containers JSON mantêm o seu formato JSON. Serializadores personalizados que mudam a forma esperada de um tipo precisam de conversão de leitura compatível; o contrato desta etapa cobre as representações da tabela, não qualquer codec arbitrário. ID deve fazer parte dos campos serializados e manter seu nome/valor de forma estável.
+Object root properties are refused, as a native string such as `true` does not distinguish Boolean string without additional metadata. Declare the concrete type, Map or List. char[] at the root is also refused by having Jackson ambiguous representations between text and array. Use Character String or List. Dynamic values within containers JSON keep their format JSON. Custom serializers that change the expected form of a type need compatible reading conversion. The contract of this stage covers the representations of the table, not any arbitrary codec. ID should be part of the serialized fields and maintain its name/value in a stable way.
 
-## CRUD e ciclo da entidade
+## CRUD and entity lifecycle
 
-Os repositórios e o template mantêm a mesma API: save/saveAll, findById/findAll/findAllById, existsById/count, delete/deleteById/deleteAll e persist. HGETALL materializa cada entidade; SCAN usa TYPE hash e o prefixo do modelo. Hash e JSON com o mesmo ID podem coexistir em prefixos distintos. Ler um formato não inclui chaves do outro.
+Repositories and template maintain the same API: save/saveAll, findById/findAll/findAllById, existsById/count, delete/deleteById/deleteAll and persist. HGETALL materializes each entity; SCAN uses TYPE hash and model prefix. Hash and JSON with the same ID can coexist in different prefixes. Reading one format does not include keys from the other.
 
-IDs gerados, records, classes mutáveis, Persistable, auditoria e callbacks seguem os contratos anteriores. Antes da escrita: BeforeConvert, auditoria e BeforeSave. Depois da confirmação: aplicação dos valores gerenciados em classes mutáveis e AfterSave. AfterConvert também é aplicado às leituras HASH. Records retornam uma nova instância com ID/versão; use sempre o retorno de save.
+Generated IDs, records, transferable classes, Persistable, audit, and callbacks follow previous contracts. Before writing: BeforeConvert, audit, and BeforeSave. After confirmation: application of managed values in transferable classes and AfterSave. AfterConvert is also applied to readings HASH. Records return a new instance with ID/version. Always use the return of save.
 
-Os dados de criação recebidos são preservados em atualizações, com os mesmos limites documentados de confiança nos valores fornecidos pela aplicação. O exemplo HTTP carrega os metadados de criação do estado armazenado, mas mantém a versão esperada enviada pelo cliente. Falhas BeforeSave recusam a escrita; falhas AfterSave continuam sendo AfterSaveCallbackException porque a escrita já foi confirmada. Efeitos em memória de auditoria/callbacks não têm rollback automático.
+The creation data received is preserved in updates, with the same documented limits of confidence in the values provided by the application. The HTTP example loads the metadata of creating the stored state, but keeps the expected version sent by the client. BeforeSave faults refuse writing; AfterSave faults continue to be AfterSaveCallbackException because writing has already been confirmed. Effects on audit memory/callbacks do not have automatic rollback.
 
-### Versão e criação exclusiva
+### Versioning and exclusive creation
 
-`@Version` aceita os mesmos tipos: Long/Integer começam em null e são persistidos em zero; long/int começam em zero e são persistidos em um. Na atualização, o contador incrementa em Java e conteúdo/versão são escritos juntos por HREPLACE. O script compara HGET como texto inteiro exato, sem conversão para o número de Lua, inclusive acima de 2^53.
+`@Version` accepts the same types: Long/Integer start in null and are persistent in zero. Long/int start in zero and are persistent in one. In the update, the counter increases in Java and content/version are written together by HREPLACE. The script compares HGET as exact whole text, without conversion to the Moon number, including above 2^53.
 
-Entidades novas versionadas, IDs gerados e Persistable.isNew=true usam criação exclusiva. Uma criação duplicada versionada gera OptimisticLockingFailureException; uma colisão de ID gerado sem versão gera DuplicateKeyException. Atualizações/exclusões versionadas exigem versão correspondente. Chaves removidas/expiradas não são recriadas por uma atualização. deleteById lê a versão corrente e faz exclusão condicionada, como em JSON; uma chave já ausente é uma operação sem efeito.
+New versioned entities, generated IDs, and Persistable.isNew=true use exclusive creation. A duplicate versioned creation generates OptimisticLockingFailureException. An unversioned generated ID collision generates DuplicateKeyException. Versioned updates/deletions require a corresponding version. Removed/expired keys are not recreated by an update. deleteById reads the current version and makes conditional deletion, as in JSON. An already absent key is a no-effect operation.
 
-Documentos antigos sem campo de versão exigem migração explícita. Reutilizar um ID após exclusão/expiração mantém o limite ABA do contador numérico. Comandos HSET/HDEL/HREPLACE diretos não passam pelo ciclo de entidades; escritores externos devem respeitar o mesmo protocolo para obter controle de versão.
+Old documents without version field require explicit migration. Reusing an ID after deletion/expiration maintains the limit ABA of the numeric counter. Commands HSET/HDEL/HREPLACE direct do not pass through the entity cycle. External writers must follow the same protocol to get version control.
 
-### TTL, UNIQUE e falhas
+### TTL, UNIQUE, and failures
 
-A comparação/criação exclusiva, substituição e eventual TTL acontecem sob o isolamento de um script. Antes de gravar com TTL, o script verifica PEXPIRE sem alterar a chave. Sem política explícita, HREPLACE preserva a data de expiração existente; TTL por tipo ou instância é reaplicado somente após uma substituição bem-sucedida. Valores Duration também são aceitos e convertidos para milissegundos pela política de TTL. persist continua sendo a remoção explícita de expiração, sem incremento da versão.
+The exclusive comparison/creation, substitution and eventual TTL occur under the isolation of a script. Before recording with TTL, the script checks PEXPIRE without changing the key. Without explicit policy, HREPLACE preserves the existing expiration date; TTL per type or instance is reapplied only after a successful replacement. Duration values are also accepted and converted to milliseconds by the TTL policy.
 
-Uma recusa por UNIQUE preserva todos os campos, versão, auditoria, expiração e donos dos índices. O servidor valida o estado final: remover um campo de um índice composto e alterar outro na mesma substituição não tenta publicar uma combinação intermediária. A correção de undo incluída no patch evita que a recusa transforme campos antigos em exclusões persistidas.
+A UNIQUE refusal preserves all the fields, version, audit, expiration and owners of the indexes. The server validates the final state: removing one field from a composite index and changing another in the same substitution does not attempt to publish an intermediate combination. The undo correction included in the patch prevents the refusal from transforming old fields into persistent deletions.
 
-HREPLACE grava campos e versão na mesma transação nativa. Continuam válidos os limites de durabilidade: um índice UNIQUE pode antecipar commit, portanto HASH + TTL não recebem uma garantia adicional de commit durável conjunto após crash. Uma falha de transporte pode deixar o resultado incerto. Não há retry automático nem transação entre entidades; operações em lote são sequenciais e podem ter sucesso parcial.
+HREPLACE records fields and version in the same native transaction. Durability limits remain valid: an index UNIQUE may anticipate commit, therefore HASH + TTL do not receive an additional guarantee of durable commit set after crash. A transport failure may leave the result uncertain. There is no automatic retry or transaction between entities. Batch operations are sequential and may have partial success.
 
-Permissões da aplicação: EVAL, HLEN, HGETALL, HREPLACE; HGET para versão; PEXPIRE com TTL; DEL para excluir; SCAN para listar; PERSIST para remover expiração. A configuração Docker declara essas permissões e o prefixo demo:hash:*. O usuário ttl-restricted continua sem PEXPIRE para testar recusa antes da escrita.
+Application permissions: EVAL, HLEN, HGETALL, HREPLACE; HGET for version; PEXPIRE with TTL; DEL to delete; SCAN to list; PERSIST to remove expiration. The Docker configuration declares these permissions and the demo prefix:hash:*. The ttl-restricted user continues without PEXPIRE to test refusal before writing.
 
-## Índices e consultas
+## Indexes and queries
 
-O item 4.1 entrega o CRUD; o item 4.2 acrescenta schema ON HASH e consultas IDX/FT declaradas, derivadas e programáticas. Consulte [índices e consultas HASH](hash-indexes-and-queries.md) para aliases, separadores, diferenças de TAG/NUMERIC e limites de derivação. Os testes específicos do CRUD ainda usam fixtures administrativas para isolar a proteção UNIQUE da escrita.
+The item 4.1 delivers the CRUD. The item 4.2 adds ON scheme HASH and queries IDX/FT declared, derived and programmatic. See [indexes and queries HASH](hash-indexes-and-queries.md) for aliases, separators, differences of TAG/NUMERIC and derivation limits. The specific tests of CRUD still use administrative fixations to isolate the protection UNIQUE from writing.
 
-As operações template.json(...) continuam recusando modelos HASH. Não há uma API de mudanças parciais de campos HASH nesta etapa. O exemplo `/hash-customers` amplia `/hash-notes` com buscas nativas equivalentes às do Customer JSON, respeitando as diferenças dos formatos.
+Operations template.json(...) continue to refuse models HASH. There is no API partial field changes HASH at this stage. The `/hash-customers` example expands `/hash-notes` with native searches equivalent to those of the Customer JSON, respecting the differences in formats.
 
-## Exemplo HTTP
+## HTTP example
 
-`/hash-notes` usa HashNote com ID gerado, versão Long, auditoria, normalização por callback, conteúdo opcional, lista e Map aninhado e TTL padrão de cinco minutos:
+`/hash-notes` uses HashNote with generated ID, Long version, audit, callback normalization, optional content, nested list and map and TTL five-minute standard:
 
 ```powershell
 $data = @{ reference = [guid]::NewGuid().ToString(); text = ' rascunho '; tags = @('hash'); details = @{ enabled = $true } }
 $first = Invoke-RestMethod http://127.0.0.1:8080/hash-notes -Method Post -ContentType application/json -Body ($data | ConvertTo-Json -Depth 5)
 $data.version = $first.version
-$data.text = $null # remove o campo HASH text
+$data.text = $null # remove field HASH text
 $current = Invoke-RestMethod "http://127.0.0.1:8080/hash-notes/$($first.id)" -Method Put -ContentType application/json -Body ($data | ConvertTo-Json -Depth 5)
-# Repetir o PUT com version=0 recebe HTTP 409.
+# Repeat PUT with version=0 receives HTTP 409.
 Invoke-RestMethod "http://127.0.0.1:8080/hash-notes/$($current.id)?version=$($current.version)" -Method Delete
 ```
 
-POST exige versão ausente/null; PUT e DELETE exigem a versão esperada. Conflitos de versão/UNIQUE retornam HTTP 409. Auditoria não é recebida no DTO de entrada.
+POST requires missing/null version; PUT and DELETE require the expected version. Version conflicts/UNIQUE return HTTP 409. Audit is not received in DTO entry.
 
-## Validação
+## Validation
 
-HashMappingTest cobre escolha de formato, conversões, null, alias, precisão decimal/temporal, managed values e falhas de gravação. HashRepositoryIntegrationIT usa Datadam real no Docker: ciclo completo, substituição sem campos antigos, UNIQUE com preservação integral e avaliação do estado final, versão concorrente por pools independentes, precisão int64, TTL numérico/Duration, mutáveis/records, tipos, coexistência/WRONGTYPE, ACL e HTTP.
+HashMappingTest covers format choice, conversions, null, aliases, decimal/temporal accuracy, managed values and recording failures. HashRepositoryIntegrationIT uses Real Datadam on Docker: complete cycle, replacement without old fields, UNIQUE with full preservation and evaluation of the final state, concurrent version by independent pools, int64 accuracy, TTL numerical/Duration, mutables/records, types, coexistence/WRONGTYPE, ACL and HTTP.
 
-O patch C++ inclui testes de TTL, campos duplicados, reabertura do banco, WRONGTYPE e recusa UNIQUE dentro de script preservando os dados antes e depois de reabrir o banco. O estágio Docker `test` executa a suíte nativa e os testes de integração/persistência do servidor.
+The C++ patch includes TTL tests, duplicate fields, bank reopening, WRONGTYPE and refusal UNIQUE within the script preserving the data before and after the bank reopens. The Docker stage `test` executes the native suite and server integration/persistence tests.

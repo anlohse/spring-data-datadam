@@ -1,8 +1,8 @@
-# Migrações explícitas de índices
+# Explicit index migrations
 
-O item 6.2 prepara um novo índice sem substituir o índice que a aplicação usa. O fluxo tem três fases independentes: **preparar**, **trocar os consumidores** e **remover o índice anterior**. Não há alias lógico, troca atômica de nomes, atualização automática de repositórios ou rollback automático.
+The item 6.2 prepares a new index without replacing the index that the application uses. The flow has three independent phases: **prepare**, **exchange consumers** and **remove previous index**. There is no logical alias, atomic name exchange, automatic repositories update or automatic rollback.
 
-## 1. Declarar um alvo versionado separado
+## 1. Declare a separate versioned target
 
 ```java
 @DatadamDocument(prefix = "customer:")
@@ -18,100 +18,100 @@ var migration = new IndexMigration(
 var migrations = new DatadamIndexMigrations(administrativeCommands);
 ```
 
-O alvo deve estar declarado no modelo informado e ter sufixo `:vN`, com N inteiro positivo. Origem e alvo precisam ter nomes diferentes. A origem deve existir, estar READY e cobrir exatamente o mesmo prefixo e formato JSON/HASH. É permitido mudar a família IDX/FT e o schema; essas mudanças precisam ser compatíveis com as consultas e dados da aplicação.
+The target must be declared in the informed model and have suffixed `:vN`, with positive integer N. Origin and target must have different names. Origin must exist, be READY and cover exactly the same prefix and format JSON/HASH. It is allowed to change the family IDX/FT and the scheme. These changes need to be compatible with the application's queries and data.
 
-Use um modelo de preparação separado das entidades/repositórios ativos. A derivação escolhe entre as anotações da entidade: acrescentar v2 à entidade ativa pode alterar essa escolha na próxima execução, mesmo antes do deploy pretendido. Criar v2 no servidor, usando um modelo separado, não muda o plano da entidade antiga. Não inclua o modelo de preparação no provisionamento automático de todos os schemas.
+Use a separate preparation model of the active entities/repositories. The derivative chooses between the entity's notes: adding v2 to the active entity may change that choice in the next execution, even before the intended deployment. Creating v2 on the server, using a separate model, does not change the plan of the old entity. Do not include the preparation model in the automatic provisioning of all schemes.
 
-## 2. Preparar e validar
+## 2. Prepare and validate
 
 ```java
-IndexMigrationStatus state = migrations.inspect(migration); // somente leitura
+IndexMigrationStatus state = migrations.inspect(migration); // read only
 state = migrations.prepare(migration, Duration.ofMinutes(5));
 if (!state.readyForUse()) throw new IllegalStateException("Migration is not ready");
 
-// Revalidar antes de publicar consumidores que referenciam o nome novo:
+// Revalidate before publishing consumers referring to the new name:
 migrations.validateReady(migration);
 ```
 
-`prepare` valida o escopo da origem e o schema declarado. Se o alvo não existe, cria **somente esse índice**, com backfill completo; não usa SKIPINITIALSCAN. Se existe e o schema corresponde, aproveita-o e aguarda READY. Schema diferente interrompe o fluxo com diferenças por propriedade, sem DROP nem substituição. Uma criação concorrente que responde “already exists” também é inspecionada e comparada.
+`prepare` validates the scope of the origin and the declared schema. If the target does not exist, it creates **only this index**, with full backfill. It does not use SKIPINITIALSCAN. If it exists and the schema corresponds, it takes advantage of it and waits READY. Different schema interrupts the flow with differences by property, without DROP or substitution. A concurrent creation that responds to otherready existences is also inspected and compared.
 
-O retorno contém a declaração da migração, a inspeção da origem e a comparação do alvo. `readyForUse()` exige ambos os índices READY e schema do alvo compatível. `inspect` pode mostrar alvo ausente/BUILDING/FAILED e origem ausente, sem criar nada. `validateReady` exige o estado pronto; não executa DDL nem muda roteamento.
+The return contains the migration declaration, origin inspection and target comparison. `readyForUse()` requires both indexes READY and compatible target scheme. `inspect` may show missing target/BUILDING/FAILED and absent origin, without creating anything. `validateReady` requires READY state. Does not execute DDL nor changes routing.
 
-O timeout limita a espera por backfill, não a soma das chamadas de metadados, que também seguem o timeout de conexão/socket. Os schemas e estados são observados por comandos separados. FT.INFO percorre o índice para obter metadados completos/estatísticas; use o [status leve](index-diagnostics.md) para polling frequente.
+The timeout limits waiting by backfill, not the sum of metadata calls, which also follow the connection/socket timeout. Schematics and states are observed by separate commands. FT.INFO scrolls through the index to obtain complete/statistical metadata. Use [light status](index-diagnostics.md) for frequent polling.
 
-READY confirma que o backfill desse índice terminou, mas não substitui testes das consultas de negócio. Mudanças de campos, TAGs divididas, caixa, aliases e valores ausentes podem mudar os resultados. IDX composto exclui documentos que não fornecem todos os campos indexáveis. Faça consultas de validação usando credenciais com acesso aos dados necessários e confirme filtros, ordenação, cobertura e totais conforme a semântica nova; a API de migração não lê nem corrige documentos.
+READY confirms that the backfill of this index is over, but does not replace tests of business queries. Field changes, split TAGs, box, aliases and missing values can change the results. IDX compound excludes documents that do not provide all indexable fields. Make validation queries using credentials with access to the necessary data and confirm filters, sorting, coverage and totals according to the new semantics. The API migration does not read or correct documents.
 
-Um índice existente criado externamente com SKIPINITIALSCAN pode ter schema compatível e estado READY sem cobrir os dados históricos. O servidor não expõe essa proveniência em INFO. Retome apenas alvos criados por este fluxo ou cuja criação com backfill completo tenha sido verificada operacionalmente. A biblioteca não consegue certificar essa história a partir de INFO.
+An existing index created externally with SKIPINITIALSCAN may have a compatible schema and state READY without covering historical data. The server does not expose this source in INFO. Retrieve only targets created by this stream or whose creation with full backfill has been verified operationally. The library cannot certify this history from INFO.
 
-## 3. Fazer a troca de uso na aplicação
+## 3. Switch the application to the new index
 
-Depois de `validateReady` e dos testes de negócio, faça um deploy que referencie explicitamente `customers:search:v2` em `@FtQuery`, `@IdxQuery`, na API programática ou nas declarações da entidade usada pela derivação. Para exemplo anotado:
+After `validateReady` and the business tests, make a statement that explicitly reference `customers:search:v2` in `@FtQuery`, `@IdxQuery`, in API programmatic or in the statements of the entity used by the referral. For example annotated:
 
 ```java
 @FtQuery(index = "customers:search:v2", value = "@city:{?0} @age:[?1 ?2]")
 Page<CustomerSearchV2> byCityAndAge(String city, int minimum, int maximum, Pageable page);
 ```
 
-O índice precisa estar declarado na entidade desse repositório. O servidor não redireciona o nome antigo para o novo. Durante um deploy gradual, versões antigas e novas podem consultar nomes diferentes. Mantenha ambos enquanto houver consumidores antigos, inclusive tarefas agendadas e workers. Para voltar à versão anterior, volte o deploy enquanto o índice anterior ainda existe; isso não desfaz efeitos de novas restrições UNIQUE sobre gravações.
+The index needs to be declared in the entity of this repository. The server does not redirect the old name to the new one. During a gradual deployment, old and new versions may consult different names. Keep both while there are old consumers, including scheduled tasks and workers. To return to the previous version, return the deployment while the previous index still exists. This does not undo the effects of new restrictions UNIQUE on writes.
 
-**UNIQUE afeta as escritas desde CREATE, antes da troca das consultas.** O índice novo passa a ser mantido assim que é registrado. Antes de prepará-lo, ajuste os produtores e resolva os dados incompatíveis com a nova restrição. A migração não é uma fase sem efeitos sobre gravações, mesmo que o roteamento de leitura permaneça intacto.
+**UNIQUE has affected the writes since CREATE, prior to the exchange of queries.** The new index is maintained as soon as it is recorded. Before preparing it, adjust the producers and resolve the data incompatible with the new restriction. Migration is not a phase without effects on writes, even if the reading route remains intact.
 
-## 4. Remover o anterior em operação separada
+## 4. Retire the old index separately
 
 ```java
-// Com outra conexão, autorizada a DROP, após retirar todos os consumidores antigos:
+// With another connection, authorised to DROP, after removing all old consumers:
 var cleanup = new DatadamIndexMigrations(retirementCommands);
 cleanup.retirePrevious(migration);
 ```
 
-Essa operação revalida schema e readiness e envia somente `IDX.DROP previousIndex`. O Datadam aceita IDX.DROP tanto para IDX quanto para FT. Não é usado FT.DROPINDEX DD e nenhum documento é removido. A API não pode detectar tráfego ou provar que todos os consumidores migraram; essa decisão pertence ao deploy/operação. `prepare` e `validateReady` nunca chamam DROP.
+This operation revalidates schema and readiness and sends only `IDX.DROP previousIndex`. Datadam accepts IDX.DROP both for IDX and FT. FT is not used.DROPINDEX DD and no document is removed. API cannot detect traffic or prove that all consumers have migrated. This decision belongs to the Deployment/Operation. `prepare` and `validateReady` never call DROP.
 
-Não remova o anterior se ainda for necessário para rollback. Depois do DROP, a declaração antiga também precisa sair do provisionamento de schemas da aplicação; caso contrário, `ensureIndexes` poderá recriá-la. Revalidar a migração pelo nome anterior após sua remoção informa origem ausente: o relatório não é um histórico permanente de execução.
+Do not remove the previous one if it is still necessary for rollback. After DROP, the old declaration also needs to exit the layout of the application. Otherwise, `ensureIndexes` may recreate it. Revalidate the migration by the previous name after its removal informs absent origin: the report is not a permanent history of execution.
 
-Operações administrativas concorrentes precisam ser serializadas externamente. A checagem e o DROP não são uma operação atômica com a aplicação nem com outro administrador que possa remover/recriar o mesmo nome. Use nomes versionados imutáveis e não reutilize nomes de migrações concluídas.
+Competing administrative operations need to be serialized externally. Checking and DROP is not an atomic operation with the application or with another administrator that can remove/recreate the same name. Use unchangeable version names and do not reuse completed migration names.
 
-## Falha UNIQUE e recuperação
+## UNIQUE failures and recovery
 
-Se dados existentes violam UNIQUE, o alvo fica FAILED, a preparação lança `DataIntegrityViolationException` e o índice anterior permanece. A biblioteca não apaga documentos, escolhe “um vencedor”, modifica valores, relaxa UNIQUE nem recria o alvo automaticamente.
+If existing data violates UNIQUE, the target is FAILED, the preparation launches `DataIntegrityViolationException` and the previous index remains. The library does not erase documents, chooses a winner, modifies values, relaxes UNIQUE or recreates the target automatically.
 
-1. Inspecione a falha e identifique os dados com ferramentas autorizadas.
-2. Resolva as duplicatas explicitamente, respeitando o domínio e os produtores concorrentes.
-3. Com credenciais de limpeza, chame `discardFailedTarget(migration)`. Essa operação exige schema correspondente e estado FAILED, mantém a origem READY e remove somente o alvo.
-4. Execute `prepare` novamente e repita a validação de negócio.
+1. Inspect the failure and identify the data with authorized tools.
+2. Solve duplicates explicitly, respecting the domain and competing producers.
+3. With cleaning credentials, call `discardFailedTarget(migration)`. This operation requires corresponding scheme and state FAILED, maintains the origin READY and removes only the target.
+4. Run `prepare` again and repeat business validation.
 
-O método de descarte recusa alvos READY ou BUILDING. Para abandonar uma construção em andamento, use uma intervenção administrativa separada e avalie seus consumidores; não há cancelamento automático pela biblioteca. Um índice FAILED não é mantido pelas escritas; corrigir os dados não o torna READY por si só.
+The method of discarding rejects targets READY or BUILDING. To abandon a construction in progress, use a separate administrative intervention and evaluate its consumers. There is no automatic cancellation by the library. An index FAILED is not maintained by the writes. Correcting the data does not make it READY by itself.
 
-Erros podem conter nomes de índices, chaves ou valores fornecidos pelo servidor; trate a saída administrativa conforme a sensibilidade dos dados e não a publique em logs HTTP.
+Errors may contain index names, keys or values provided by the server. Treat the administrative output according to the sensitivity of the data and not publish it in logs HTTP.
 
-## Timeout, desconexão e reinício
+## Timeouts, disconnects, and restarts
 
-- Timeout/interrupção de espera deixa os índices existentes no servidor. Nova execução de `prepare` inspeciona o alvo e retoma a espera, sem criar outro nome nem remover a origem.
-- Se a resposta de CREATE se perder, a API propaga a falha sem repetir a mutação dentro da mesma chamada. Execute novamente com o mesmo nome/intenção para descobrir se a definição foi registrada. Só “already exists” é tratado como disputa de criação, após nova comparação do schema.
-- O Datadam persiste definições e reinicia automaticamente o backfill de um índice que ficou BUILDING. Após reinício do servidor, recrie a conexão/cliente, inspecione e execute `prepare`/`validateReady` novamente. Progresso pode recomeçar em zero.
-- Não há tabela de migrações ou decisão de cutover persistida pela biblioteca. A retomada usa o nome versionado e o schema do servidor.
-- A perda da resposta de DROP também deixa resultado incerto. Inspecione os nomes antes de decidir o próximo passo; não repita remoções cegamente nem reutilize o nome removido.
+- Timeout/stopping wait leaves the existing indexes on the server. New `prepare` run inspects the target and resumes waiting, without creating another name or removing the origin.
+- If the CREATE answer is lost, the API spreads the failure without repeating the mutation within the same call. Run again with the same name/intendence to find out if the definition was registered. Only "already exists" is treated as a creative dispute, after a new comparison of the scheme.
+- Datadam persists in settings and automatically restarts the backfill of an index that has become BUILDING. After restarting the server, rewrite the connection/client, inspect and run `prepare`/`validateReady` again. Progress can start over.
+- There is no migration table or cutover decision persisted by the library. The resume uses the version name and the server schema.
+- The loss of the response of DROP also leaves the result uncertain. Inspect the names before deciding the next step. Do not repeat deletions blindly or reuse the name removed.
 
-Falhas ACL/transporte não são convertidas em “índice ausente”. A API não amplia privilégios nem usa uma conexão alternativa automaticamente.
+Failures ACL/transport are not converted to missing index. The API does not extend privileges or use an alternative connection automatically.
 
-## Credenciais específicas
+## Dedicated credentials
 
-O Docker local separa três papéis:
+The local Docker separates three roles:
 
-| Usuário | Permissões de índices | Uso |
+| User | Index permissions | Use |
 |---|---|---|
-| `index-observer` | IDX.LIST, IDX.INFO, FT.INFO | Diagnóstico somente leitura |
-| `index-migrator` | IDX.INFO, FT.INFO, IDX.CREATE, FT.CREATE | Preparação/validação, sem DROP |
-| `index-retirer` | IDX.INFO, FT.INFO, IDX.DROP | Retirada ou descarte explícito, sem CREATE |
+| `index-observer` | IDX.LIST, IDX.INFO, FT.INFO | Diagnosis only reading |
+| `index-migrator` | IDX.INFO, FT.INFO, IDX.CREATE, FT.CREATE | Preparation/validation without DROP |
+| `index-retirer` | IDX.INFO, FT.INFO, IDX.DROP | Explicit withdrawal or disposal without CREATE |
 
-Esses usuários também têm conexão/autenticação. Nenhum recebe comandos de leitura/escrita de documentos ou permissões para alterar ACL. A aplicação `app` continua sem DDL. Ajuste usuários e senhas no ambiente real; os segredos do exemplo são apenas locais.
+These users also have connection/authentication. None receive read/write commands of documents or permissions to change ACL. The application `app` continues without DDL. Adjust users and passwords in the real environment. The secrets of the example are only local.
 
-ACL de comandos de índice não limita o nome do índice por padrão de chave. Esses privilégios administrativos e metadados são globais; uma conexão autorizada a DROP não é confinada ao prefixo da entidade pela ACL. A API verifica escopo, mas o controle de acesso deve considerar o comando nativo. Para validar consultas/dados, use outro usuário com os comandos e padrões de leitura necessários.
+ACL of index commands does not limit the index name by key pattern. These administrative and metadata privileges are global. An authorized connection to DROP is not confined to the entity's prefix by ACL. API checks scope, but the access control must consider the native command. To validate queries/data, use another user with the necessary commands and reading patterns.
 
-Depois de editar a configuração local, `docker compose restart datadam` carrega as novas credenciais sem remover o volume. Não conceda DROP ao preparador por conveniência.
+After editing the local configuration, `docker compose restart datadam` loads the new credentials without removing the volume. Do not grant DROP to the convenience preparer.
 
-## Exemplo executável
+## Runnable example
 
-`CustomerSearchV2` é o modelo de preparação separado de `Customer`. O exemplo migra o FT `demo:customers:search` para `demo:customers:search:v2`, com cidade exata e email no schema. Isso muda a semântica em relação ao FT original com folding e tags; a aplicação ativa continua usando suas declarações atuais. O exemplo não faz deploy/cutover.
+`CustomerSearchV2` is the separate preparation model of `Customer`. The example migrates the FT `demo:customers:search` to `demo:customers:search:v2`, with exact city and email in the schema. This changes semantics in relation to the original FT with folding and tags. The active application continues to use its current statements. The example does not deploy/cutover.
 
 ```powershell
 $env:DATADAM_MIGRATION_USER = 'index-migrator'
@@ -121,12 +121,12 @@ java '-Dloader.main=com.anlohse.datadam.demo.IndexMigrationApplication' -cp data
 java '-Dloader.main=com.anlohse.datadam.demo.IndexMigrationApplication' -cp datadam-demo/target/datadam-demo-0.1.0-SNAPSHOT.jar org.springframework.boot.loader.launch.PropertiesLauncher validate
 ```
 
-A CLI exige exatamente uma ação. `retire` e `discard-failed` são ações separadas e exigem credenciais `index-retirer`; não são parte de `prepare`. Não execute `retire` neste exemplo enquanto os repositórios atuais ainda dependerem do FT original.
+The CLI requires exactly one action. `retire` and `discard-failed` are separate actions and require credentials `index-retirer`. They are not part of `prepare`. Do not execute `retire` in this example while the current repositories still depend on the original FT.
 
-## Validação automatizada
+## Automated validation
 
-`IndexMigrationsTest` testa preparo de um único alvo, retomada, conflitos, resposta de criação perdida, estados inválidos, interrupção e separação entre preparo/descarte/retirada. `IndexMigrationsIntegrationIT` valida JSON/HASH, backfill histórico, colisão de schema, duplicatas UNIQUE e sua correção explícita, manutenção do plano ativo e ACL de cada papel.
+`IndexMigrationsTest` test preparation of a single target, resumed, conflicts, lost creation response, invalid states, interruption and separation between preparation/discard/withdrawal. `IndexMigrationsIntegrationIT` validates JSON/HASH, historical backfill, schema collision, duplicates UNIQUE and its explicit correction, maintenance of the active plane and ACL of each paper.
 
-`IndexMigrationRestartIT` inicia um Datadam descartável em porta aleatória de loopback, carrega 15.000 documentos e interrompe o processo enquanto o alvo FT está BUILDING. Após reinício, outro cliente retoma a preparação e verifica a reconstrução e os totais nos dois índices sem novo CREATE/DROP. O contador observado após reinício confirma que o backfill foi retomado. O contêiner e seu volume anônimo são removidos ao final; o serviço da aplicação não é reiniciado por esse teste.
+`IndexMigrationRestartIT` starts a Disposable Datadam in random loopback port, loads 15.000 documents and interrupts the process while the FT target is BUILDING. After restarting, another client resumes the preparation and checks the reconstruction and the totals in the two indexes without new CREATE/DROP. The counter observed after restart confirms that the backfill has been resumed. The container and its anonymous volume are removed at the end. The application service is not restarted by this test.
 
-Execute `scripts/run-local.ps1 -Restart -IntegrationTests -Background`. Os testes de reinício exigem Docker CLI e a imagem versionada do [contrato de testes](../config/test-images.properties); `-BuildDatadam` prepara a revisão local fixada quando necessário. Nenhuma mudança C++ adicional é exigida por esta entrega.
+Run `scripts/run-local.ps1 -Restart -IntegrationTests -Background`. Restart tests require Docker CLI and the version image of [test contract](../config/test-images.properties); `-BuildDatadam` prepares the local revision fixed when necessary. No additional C++ change is required by this delivery.

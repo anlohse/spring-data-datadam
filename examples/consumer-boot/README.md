@@ -1,36 +1,36 @@
-# Consumidor Spring Boot independente
+# Standalone Spring Boot consumer
 
-Este projeto usa somente `com.anlohse.datadam:datadam-spring-boot-starter` instalado no Maven local. Seu parent é o Spring Boot, com `<relativePath/>`; não faz parte dos módulos do reactor, não herda o POM Datadam e não importa classes do demo. Você pode copiar esta pasta para outro diretório e executar o mesmo build depois de instalar os artefatos.
+This standalone project resolves `com.anlohse.datadam:datadam-spring-boot-starter` from the local Maven repository. It uses Spring Boot as its parent with `<relativePath/>`. It builds outside the Datadam reactor and has no dependency on the Datadam parent or demo classes. After installing the artifacts, you can copy this directory elsewhere and run the same build.
 
-Em versões anteriores deste checkout, groupId e pacotes Java usavam `io.datadam`. Agora a dependência usa `com.anlohse.datadam` e os imports usam `com.anlohse.datadam.spring.*`. O smoke test lê os metadados Maven do novo groupId nos três JARs e inicia a autoconfiguração com os novos nomes de classes.
+In previous versions of this checkout, groupId and Java packages used `io.datadam`. Now dependency uses `com.anlohse.datadam` and imports use `com.anlohse.datadam.spring.*`. The smoke test reads the Maven metadata of the new groupId in the three JARs and starts auto-configuration with the new class names.
 
-## Verificação automática
+## Automated verification
 
-Na raiz do repositório principal:
+In the root of the main repository:
 
 ```powershell
 .\scripts\verify-consumer.ps1 -Install
 ```
 
-`-Install` compila/testa/instala o núcleo, a autoconfiguração e o starter. Em outra chamada Maven, o script constrói este POM sem `-am`, resolve os JARs instalados e executa o JAR empacotado contra um Datadam descartável. O script verifica a revisão da imagem, usa seu ID e porta efêmera restrita a loopback. Remove somente seu próprio contêiner e restaura as variáveis de ambiente ao terminar.
+`-Install` compiles/tests/installs the core, auto-configuration and starter. In another named Maven, the script builds this POM without `-am`, resolves the installed JARs and executes the JAR packed against a disposable Datadam. The script checks the image revision, uses your ID and ephemeral port restricted to loopback. Removes only your own container and restores the environment variables at the end.
 
-O bootstrap de índices roda em outro processo com `consumer-schema`; o aplicativo usa `consumer-app`, sem CREATE/DROP. A senha administrativa é removida do ambiente antes de iniciar o aplicativo. Espera-se `CONSUMER_SCHEMA_READY` e depois `CONSUMER_OK crud=true idx=true ftProjection=true unique=true version=true`.
+`-Install` compiles, tests, and installs core, auto-configuration, and the starter. A separate Maven invocation builds the consumer POM without `-am`, resolves the installed JARs, and runs the packaged JAR against a disposable Datadam instance. The script checks the server image revision, runs it by image ID, and binds an ephemeral port on loopback. It removes its own container and restores the environment variables on exit.
 
-O fluxo usa IDs/SKUs próprios e verifica CRUD, SKU UNIQUE, consulta derivada IDX por autor/faixa de páginas com ordenação e total, projeção FT TAG/NUMERIC, edição versionada e recusa de versão obsoleta. Confere a versão real nos três JARs e executa health CLI por PING. Limpa somente os três IDs de fixture conhecidos antes do envio. Registra resultado/imagem/versão em `target/verification.json`; a árvore de dependências fica em `target/datadam-dependencies.txt`.
+The flow uses own IDs/SKUs and verifies CRUD, SKU UNIQUE, derived query IDX by author/page range with ordination and total, FT projection TAG/NUMERIC, versioned edition and obsolete version refusal. It confers the actual version in the three JARs and performs health CLI by PING. Clears only the three fixture IDs known prior to shipment. Record result/image/version in `target/verification.json`. The dependency tree is in `target/datadam-dependencies.txt`.
 
-Sem `-Install`, o script valida somente o consumidor. `-LibraryVersion` seleciona a versão previamente instalada; não publica artefatos.
+Without `-Install`, the script only validates the consumer. `-LibraryVersion` selects the previously installed version. It does not publish artifacts.
 
-Para validar uma release candidata já instalada, use `scripts/smoke-release.ps1 -Version 0.1.0-rc.1` na raiz principal. O resultado inclui `CONSUMER_VERSION`, `CONSUMER_HEALTH_OK` e `RELEASE_SMOKE_OK`. Chaves de assinatura, tokens Central e a senha de schema são removidos do ambiente dos processos da aplicação; o wrapper restaura os valores anteriores depois da execução. Veja o [fluxo de release](../../docs/ci-and-release.md).
+To validate an already installed candidate release, use `scripts/smoke-release.ps1 -Version 0.1.0-rc.1` on the main root. The result includes `CONSUMER_VERSION`, `CONSUMER_HEALTH_OK` and `RELEASE_SMOKE_OK`. Signature keys, Central tokens and schema password are removed from the application process environment. The wrapper restores previous values after execution. See [release flow](../../docs/ci-and-release.md).
 
-## Executar sem o wrapper
+## Run without the wrapper
 
-Primeiro, na raiz principal, instale os artefatos:
+First, in the main root, install the artifacts:
 
 ```powershell
 mvn -B -ntp -pl datadam-spring-boot-starter -am install
 ```
 
-Depois, nesta pasta, como em um projeto separado:
+Then, in this folder, as in a separate project:
 
 ```powershell
 mvn -B -ntp -Ddatadam.version=0.1.0-SNAPSHOT clean package
@@ -46,10 +46,10 @@ java -jar $jar
 docker compose down
 ```
 
-O Compose deste consumidor usa a porta 6381, usuários próprios, prefixo `consumer:book:` e volume `datadam-consumer_consumer-data`. `down` preserva o volume. As credenciais no arquivo Docker são de desenvolvimento local. O Compose baixa a imagem oficial Datadam 0.2.0 pelo digest quando necessário. O wrapper automatizado também confere o rótulo de revisão e fixa o ID observado.
+The Compose of this consumer uses the port 6381, own users, prefix `consumer:book:` and volume `datadam-consumer_consumer-data`. `down` preserves the volume. The credentials in the Docker file are of local development. The Compose lowers the official image Datadam 0.2.0 by the digest when necessary. The automated wrapper also confers the review label and fixes the observed ID.
 
-## Contrato da aplicação
+## Application contract
 
-O aplicativo é CLI, sem servidor HTTP, Actuator nem Micrometer Core. O starter não ativa varredura de repositórios, auditoria ou DDL por conta própria: `@EnableDatadamRepositories` aponta para `BookRepository` e o bootstrap é explícito. O esquema requer Datadam com RETURNJSON; Redis comum não substitui esse servidor.
+The application is CLI, without server HTTP, Actuator or Micrometer Core. The starter does not activate repositories scanning, audit or DDL on its own: `@EnableDatadamRepositories` points to `BookRepository` and bootstrap is explicit. The scheme requires Datadam with RETURNJSON; Common redis does not replace this server.
 
-O JAR usa Java release 17 e Boot 3.5.16. Para outras versões, consulte a matriz e a política de compatibilidade do projeto principal. Um erro de transporte em escrita não causa retry automático; o caller deve reconciliar pelo ID/SKU. O exemplo usa IDs de entrada conhecidos para permitir essa investigação e limpeza. Não há transação entre cadastros, consulta e exclusão.
+JAR uses Java release 17 and Boot 3.5.16. For other versions, refer to the main project's matrix and compatibility policy. A written transport error does not cause automatic retry. The caller must reconcile by ID/SKU. The example uses known input IDs to allow this investigation and cleaning. There is no transaction between registrations, query and exclusion.

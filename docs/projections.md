@@ -1,20 +1,20 @@
-# Projeções nativas IDX/FT
+# Native IDX/FT projections
 
-O item 5.1 seleciona somente as propriedades solicitadas na consulta nativa e materializa outro tipo de retorno. Não carrega entidades completas para depois reduzi-las no cliente e não executa JSON.GET/HGETALL por resultado.
+Item 5.1 selects only the properties requested in the native query and materializes another type of return. It does not load complete entities to then reduce them in the client and does not execute JSON.GET/HGETALL per result.
 
-## Primeiro conjunto suportado
+## Supported projection types
 
-- DTOs em records, pelo construtor canônico.
-- Interfaces fechadas com getters JavaBean sem parâmetros, inclusive getters herdados.
-- Consultas anotadas com @IdxQuery/@FtQuery retornando List ou Page.
-- Consultas programáticas por ProjectionSpec, nos repositórios e no template.
-- Propriedades serializáveis da raiz da entidade, incluindo nomes Jackson e tipos escalares/coleções/objetos completos armazenados nessas propriedades.
+- DTOs in records, by the canonical constructor.
+- Closed interfaces with JavaBean getters without parameters, including inherited getters.
+- Consultations annotated with @IdxQuery/@FtQuery returning List or Page.
+- Programmatic queries by ProjectionSpec, in the repositories and in the template.
+- Serializable properties of the entity's root, including Jackson names and scalar types/collections/complete objects stored on those properties.
 
-Propriedades projetadas devem usar tipos anuláveis, por exemplo Integer em vez de int. Primitivos, Object e Optional na raiz do DTO/getter são recusados antes de consultar. Isso impede que campo ausente vire silenciosamente zero/false. O tipo deve ser compatível com o da propriedade de origem; containers precisam do mesmo tipo parametrizado declarado. São respeitados os módulos/conversores globais Jackson, mas a projeção não reproduz todo o contexto de anotações de deserialização de cada propriedade da entidade. Conversões contextuais personalizadas precisam de formato compatível com o tipo solicitado.
+Designed properties must use nullifiable types, for example Integer instead of int. Primitives, Object and Optional at the root of DTO/getter are refused before consulting. This prevents the field from being silently zero/false. The type must be compatible with the origin property. Containers need the same declared parameterized type. Jackson global modules/converters are respected, but the projection does not reproduce the entire context of deserialization annotations of each entity property. Customized contextual conversions need format compatible with the requested type.
 
-Interfaces com SpEL (@Value direto ou por metaanotação), métodos default, setters ou outros métodos que não sejam getters são recusadas. DTOs de classe mutável, projeções dinâmicas via Class, projeções aninhadas por caminhos de membros e derivação de nomes com retorno projetado ficam fora deste primeiro conjunto. Selecionar uma propriedade raiz que contém uma lista/Map/objeto retorna o conteúdo completo desse valor; não é seleção de seus membros internos.
+Interfaces with SpEL (@Value directly or by meta-annotation), default methods, sets or other methods other than getters are refused. Movable class DTOs, dynamic projections via Class, projections nested by member paths and derivation of names with projected return stay out of this first set. Selecting a root property that contains a list/Map/object returns the full content of that value. It is not selection of its internal members.
 
-## Consultas anotadas
+## Annotated queries
 
 ```java
 public record CustomerSummary(String name, @ProjectionProperty("city") String town, Integer age) {}
@@ -34,13 +34,13 @@ public interface CustomerRepository extends DatadamRepository<Customer, String> 
 }
 ```
 
-O tipo genérico do retorno define a projeção: se for a entidade, mantém o carregamento completo; se for outro tipo, a definição é validada e a seleção nativa é criada. Um DTO que seja @DatadamDocument ou a própria classe da entidade é recusado como alvo de ProjectionSpec. Não há uma entidade incompleta apresentada como totalmente materializada.
+The generic type of return defines the projection: if it is the entity, it maintains the full load. If it is another type, the definition is validated and the native selection is created. A DTO that is @DatadamDocument or the entity's own class is refused as ProjectionSpec's target. There is no incomplete entity presented as fully materialized.
 
-O nome de cada componente/getter é, por padrão, o nome Java da propriedade de origem. ProjectionProperty permite outro mapeamento, como town → city. Não informe alias nativo ou JSONPath nessa anotação. Ela aponta para a propriedade Java; o plano resolve depois o nome Jackson e o identificador/alias nativo.
+The name of each component/getter is, by default, the Java name of the original property. ProjectionProperty allows another mapping, such as town → city. Do not report native aliases or JSONPath in this annotation. It points to the Java property. The plan then resolves the Jackson name and the native identifier/alias.
 
-List e Page usam a mesma ordem e limite nativos. Page IDX executa IDX.COUNT e IDX.QUERY; List IDX usa somente IDX.QUERY. FT retorna conteúdo e total na mesma chamada. Sem Pageable, consultas anotadas usam o limite padrão existente de 100; IDX permite Pageable.unpaged para seleção sem limite, enquanto FT exige página limitada.
+List and Page use the same native order and limit. Page IDX runs IDX.COUNT and IDX.QUERY; List IDX uses only IDX.QUERY. FT returns content and total on the same call. Without Pageable, annotated queries use the existing standard limit of 100; IDX allows Pageable.unpaged for unlimited selection, while FT requires limited page.
 
-## Consultas programáticas
+## Programmatic queries
 
 ```java
 ProjectionSpec<CustomerSummary> summary = ProjectionSpec.of(CustomerSummary.class);
@@ -55,52 +55,52 @@ Page<NameAndTags> result = repository.projectSearch(
     PageRequest.of(0, 20), fields);
 ```
 
-ProjectionSpec é imutável. field recebe nome da propriedade do alvo e nome Java da origem; o mapeamento explícito prevalece sobre ProjectionProperty. Alvos desconhecidos, propriedades não serializadas, fontes aninhadas, tipos incompatíveis e bindings repetidos são recusados. Quando dois campos do DTO usam a mesma origem, ela é solicitada uma única vez e o valor é disponibilizado para os dois componentes.
+ProjectionSpec is immutable. field receives name of target property and Java name of origin. Explicit mapping prevails over ProjectionProperty. Unknown targets, non-serialized properties, nested sources, incompatible types and repeated bindings are refused. When two fields of DTO use the same origin, it is requested only once and the value is made available for both components.
 
-O template expõe projectQuery/projectSearch com EntityModel e ProjectionSpec. projectQueryContent e projectSearchResults oferecem a forma de conteúdo/total usada pelos métodos anotados. Ordenação IDX segue o índice e CompoundQuery.desc; FT usa os nomes nativos do schema em Sort, como years no exemplo HASH. Não se pode combinar sorts conflitantes nem pedir FT ilimitado.
+The template exposes projectQuery/projectSearch with EntityModel and ProjectionSpec. projectQueryContent and projectSearchResults offer the form of content/total used by the annotated methods. Sorting IDX follows the index and CompoundQuery.desc; FT uses the native names of the scheme in Sort, as years in the example HASH. Conflicting spells cannot be combined or unlimited FT requests.
 
-## JSON, HASH e aliases
+## JSON, HASH, and aliases
 
-No JSON, a seleção usa caminhos literais de membros raiz, resolvidos por Jackson, e **RETURNJSON**. A resposta de cada campo contém JSON tipado: a string `"null"` continua uma string e o valor JSON null continua null. Arrays e objetos mantêm sua estrutura e int64 não é convertido para número Lua. A precisão de números JSON segue o valor que o servidor armazena/retorna.
+In JSON, the selection uses root limb literal paths, solved by Jackson, and **RETURNJSON**. The response of each field contains JSON typed: the string `"null"` continues a string and the value JSON null continues null. Arrays and objects maintain its structure and int64 is not converted to Moon number. The precision of numbers JSON follows the value that the server stores/returns.
 
-No HASH, a seleção usa RETURN e os tipos declarados do mapeamento HASH: strings nativas permanecem strings; números, datas, bytes e JSON de containers são convertidos pelo codec. BigDecimal e int64 mantêm sua precisão, incluindo a escala decimal. Valores dinâmicos dentro de Map seguem a configuração Jackson da aplicação; a passagem interna necessária para reconstruir o campo não muda essa configuração.
+In HASH, the selection uses RETURN and the declared types of mapping HASH: native strings remain strings. Numbers, dates, bytes and JSON of containers are converted by codec. BigDecimal and int64 maintain their accuracy, including the decimal scale. Dynamic values within Map follow the Jackson configuration of the application. The internal passage required to rebuild the field does not change that configuration.
 
-Aliases FT e nomes Jackson são tratados separadamente. Por exemplo, city pode ser armazenada em home_city e indexada como home; a projeção continua podendo declarar `@ProjectionProperty("city") String town`. O campo certo é solicitado e renomeado no DTO, sem uma consulta extra. Um alias de índice que oculta outra origem e impede seleção inequívoca é recusado.
+FT aliases and Jackson names are treated separately. For example, city can be stored in home_city and indexed as home. Projection can still declare `@ProjectionProperty("city") String town`. The right field is requested and renamed in DTO, without an extra query. An index alias that hides another origin and prevents unequivocal selection is refused.
 
-Campo ausente e JSON null são representados como null no componente/getter anulável. A seleção não descarta a linha nem inventa defaults. Construtores de DTO que recusam esses valores causam DataRetrievalFailureException; a biblioteca não omite essa linha para produzir uma página aparentemente válida. Valores nativos incompatíveis com o tipo projetado também falham explicitamente, sem coerção comum de string para número ou truncamento de float para inteiro.
+Absent field and JSON null are represented as null in the null component/getter. The selection does not rule out the line or invent defaults. DTO builders who refuse these values cause DataRetrievalFailureException. The library does not omit this line to produce an apparently valid page. Native values incompatible with the type designed also explicitly fail, without common string coercion for number or float truncation for whole.
 
-## Ciclo de vida e limites
+## Lifecycle and limits
 
-Projeções são modelos de leitura: não passam por BeforeConvert/BeforeSave/AfterSave/AfterConvert de entidade, não preenchem auditoria, não incrementam versão e não alteram TTL. O construtor canônico do record é executado para criar o DTO. Listas/Maps retornados são valores locais, não uma sessão de entidade gerenciada nem uma operação de escrita.
+Projections are reading models: they do not go through BeforeConvert/BeforeSave/AfterSave/AfterConvert entity, do not complete audit, do not increase version and do not change TTL. The record canonical constructor is executed to create DTO. Returned lists/maps are local values, not a managed entity session or a writing operation.
 
-As consultas de entidades completas continuam usando o caminho anterior e executando AfterConvert. A API rejeita alvos de entidade para evitar salvar uma versão parcial como se estivesse completa. A projeção não traz automaticamente ID, versão, email ou outros campos não solicitados.
+Full entity queries continue to use the previous path and run AfterConvert. API rejects entity targets to avoid saving a partial version as if it were complete. The projection does not automatically bring ID, version, email or other unsolicited fields.
 
-Filtros, ordem, limites e contagens são executados pelo servidor. As permissões de leitura de chaves filtram conteúdo e total, como nas consultas normais. A conta projection-reader do exemplo não possui JSON.GET nem HGETALL e consegue consultar os campos selecionados dos registros visíveis. Isso não constitui ACL por campo: uma conta com acesso ao índice/chave pode executar outras consultas permitidas pelo servidor.
+Filters, order, limits and counts are executed by the server. Key reading permissions filter content and total, as in normal queries. The example projection-reader account does not have JSON.GET or HGETALL and can consult the selected fields of the visible logs. This does not constitute ACL per field: an account with access to the index/key can execute other queries allowed by the server.
 
-Não são acrescentadas transações entre IDX.COUNT e IDX.QUERY: sob alterações concorrentes, mantêm os limites de consistência/paginação já existentes. Não há repetição automática, filtragem de páginas no cliente ou fallback para carregar o documento inteiro. O servidor ainda precisa ler/interpretar o documento JSON para extrair os campos; a seleção reduz o tráfego e a materialização na aplicação, sem prometer custo interno proporcional apenas aos campos retornados. Projeções derivadas por nome, joins, expressões computadas, caminhos multivalorados e seletores JSONPath arbitrários não fazem parte desta entrega.
+No transactions are added between IDX.COUNT and IDX.QUERY: under concurrent changes, they maintain the existing consistency/page limits. There is no automatic repetition, page filtering in the client or failure to load the entire document. The server still needs to read/interpret the document JSON to extract the fields. The selection reduces traffic and materialization in the application, without promising internal cost proportional only to the returned fields. Projections derived by name, joints, computerized expressions, multivalued paths and JSONPath arbitrary selectors are not part of this delivery.
 
-## Dependência de servidor RETURNJSON
+## RETURNJSON server dependency
 
-RETURN existente devolve strings JSON sem aspas, tornando indistinguíveis uma string literal `null` e um valor JSON null. RETURNJSON foi acrescentado ao Datadam C++ para resolver isso sem mudar RETURN nem fazer uma leitura por documento. A sintaxe segue RETURN; em FT, o count também inclui os tokens AS/alias. Retorna o primeiro valor de cada caminho e omite caminhos ausentes. Em HASH, a extensão mantém a representação nativa de RETURN; a biblioteca usa RETURN normal para esse formato.
+RETURN existing returns strings JSON without quotes, making indistinguishable a literal string `null` and a value JSON null. RETURNJSON was added to Datadam C++ to resolve this without changing RETURN or making a reading per document. The syntax follows RETURN. In FT, the count also includes AS/alias tokens. Returns the first value of each path and omits missing paths. In HASH, the extension maintains the native representation of RETURN. The library uses RETURN normal for this format.
 
-Projeções JSON precisam do [patch typed-return.patch](../server-patches/typed-return.patch), já aplicado e testado na imagem local. Projeções HASH usam RETURN existente; as escritas HASH continuam precisando do patch HREPLACE. As instruções de aplicação e testes estão em [server-patches/README.md](../server-patches/README.md). Servidores antigos falham explicitamente na opção não suportada, sem buscar toda a entidade como alternativa.
+Projections JSON need the [patch typed-return.patch](../server-patches/typed-return.patch) already applied and tested in the local image. Projections HASH use RETURN existing. The writes HASH continue to need the patch HREPLACE. The application instructions and tests are in [Patches server/README.md](../server-patches/README.md). Ancient servers explicitly fail in the option not supported, without looking for the whole entity as an alternative.
 
-## Exemplo HTTP
+## HTTP example
 
-CustomerProjectionController usa os mesmos dados dos endpoints Customer e HashCustomer:
+CustomerProjectionController uses the same data from the Customer and HashCustomer endpoints:
 
 ```powershell
-# Depois de criar clientes em /customers e /hash-customers:
+# After creating customers in /customers and /hash-customers:
 Invoke-RestMethod 'http://127.0.0.1:8080/customer-projections/json?city=SP&page=0&size=10'
 Invoke-RestMethod 'http://127.0.0.1:8080/customer-projections/hash?city=SP&page=0&size=10'
 Invoke-RestMethod 'http://127.0.0.1:8080/customer-projections/json/search?city=SP&page=0&size=10'
 Invoke-RestMethod 'http://127.0.0.1:8080/customer-projections/hash/search?city=SP&page=0&size=10'
 ```
 
-As duas primeiras rotas retornam o record name/town/age; as rotas search retornam a interface name/city/age. Email, ID, tags e details não são selecionados nem serializados nessas respostas. Os testes HTTP também verificam que os detalhes internos do proxy não aparecem.
+The first two routes return the record name/town/age. The search routes return the interface name/city/age. Email, ID, tags and details are not selected or serialized in these responses. Tests HTTP also verify that the proxy internal details do not appear.
 
-## Validação
+## Validation
 
-ProjectionContractTest valida o protocolo de seleção, DTOs/interfaces, mapeamentos, tipos, nulls, coleções, precisão/conversores, limites e ausência de leituras extras. ProjectionIntegrationIT usa Datadam real para consultas anotadas List/Page, consultas programáticas, JSON/HASH, aliases, campos ausentes/null, containers, BigDecimal/int64, callbacks, TTL/conteúdo inalterados, ACL sem leitura completa, expiração e HTTP.
+ProjectionContractTest validates the selection protocol, DTOs/interfaces, mappings, types, nulls, collections, accuracy/converters, limits and absence of extra readings. ProjectionIntegrationIT uses Real Datadam for annotated queries List/Page, programmatic queries, JSON/HASH aliases, missing/null fields, containers, BigDecimal/int64, callbacks, TTL/unaltered contents, ACL without complete reading, expiration and HTTP.
 
-O estágio Docker test do servidor passou com 186 testes nativos e integração/persistência. A suíte Java passou com 262 testes (120 unitários e 142 de integração), incluindo 12 testes unitários e 16 de integração novos de projeções. Execute `./scripts/run-local.ps1 -BuildDatadam -Restart -IntegrationTests -Background` após aplicar os patches de servidor que ainda faltarem no seu checkout.
+The Docker test stage of the server passed with 186 native tests and integration/persistence. The Java suite passed with 262 tests (120 units and 142 integration), including 12 unit tests and 16 new integration of projections. Run `./scripts/run-local.ps1 -BuildDatadam -Restart -IntegrationTests -Background` after applying the server patches that are still missing in your checkout.
