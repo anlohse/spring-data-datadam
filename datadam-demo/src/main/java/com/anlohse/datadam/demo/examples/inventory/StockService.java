@@ -8,7 +8,7 @@ public class StockService {
         if(quantity<0||expectedVersion==null||expectedVersion<0)throw new IllegalArgumentException("Nonnegative quantity and expected version are required");
         var current=repository.findById(id).orElseThrow(()->new java.util.NoSuchElementException("Stock item not found"));
         // Send the caller's version to the server CAS, even if a newer value was just read.
-        return repository.save(new StockItem(id,current.sku(),quantity,expectedVersion));
+        return repository.save(new StockItem(id,current.sku(),quantity,expectedVersion,current.lastCheckoutId()));
     }
     public void delete(String id,Long expectedVersion){
         if(expectedVersion==null||expectedVersion<0)throw new IllegalArgumentException("Expected version is required");

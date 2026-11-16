@@ -31,7 +31,9 @@ The Spring transaction manager is deferred. A future explicit batch API could re
 
 ## Orders and inventory
 
-The native test suite demonstrates the scenario in item 9.1 by queuing an order write and an inventory update. A concurrent write to the key observed with `WATCH` can abort the queue. If the queue executes and the inventory script rejects a stale version, the order can exist without a quantity change. If the reply is lost, the application must read the order by ID and verify inventory before deciding whether to try again. The `PurchaseOrder`, `StockItem`, and `@Transactional` checkout example is deferred until the application has a contract for these outcomes.
+The native test suite queues an order write and an inventory update. A concurrent write to the key observed with `WATCH` can abort the queue. If the queue executes and the inventory script rejects a stale version, the order can exist without a quantity change. A lost reply leaves the outcome uncertain.
+
+The Spring demo for item 9.1 handles these cases with an explicit checkout workflow using versioned repositories. Each order has a caller-supplied ID. The stock write saves that ID alongside the new quantity, so a read can confirm the debit after an ambiguous response. A stock rejection leaves the order with a partial outcome. Follow the [checkout walkthrough](demo-examples.md#91-orders-and-inventory).
 
 Start Docker and use the project’s pinned image to run the integration suite. The runner creates and removes its own Datadam instance.
 
