@@ -1,8 +1,8 @@
-# Concorrência com @Version
+# Optimistic locking with @Version
 
-O item 2.1 adiciona optimistic locking aos documentos JSON usando `org.springframework.data.annotation.Version`. Duas gravações que apresentam a mesma versão existente não podem ter sucesso: a primeira incrementa a versão; a segunda recebe `OptimisticLockingFailureException`.
+Milestone 2.1 adds optimistic locking to JSON documents through `org.springframework.data.annotation.Version`. When two writes target the same existing version, only the first succeeds and increments the version. The second receives `OptimisticLockingFailureException`.
 
-## Usar no repositório
+## Use in a repository
 
 ```java
 @DatadamDocument(prefix = "note:")
@@ -11,67 +11,67 @@ public record Note(@Id @DatadamGeneratedId String id, String text, @Version Long
 Note first = repository.save(new Note(null, "original", null)); // version = 0
 Note current = repository.save(new Note(first.id(), "alterado", first.version())); // version = 1
 repository.save(new Note(first.id(), "atrasado", first.version())); // conflito
-repository.delete(first);   // conflito: versão 0
-repository.delete(current); // exclui: versão 1
+repository.delete(first);   // conflict: version 0
+repository.delete(current); // Excluded: version 1
 ```
 
-Sempre use a entidade retornada por `save`/`saveAll`. Records recebem uma nova instância pelo construtor canônico, que precisa preservar os valores gerenciados de ID e versão. Classes mutáveis recebem ID gerado e versão somente depois da confirmação da escrita. Recusas por versão, UNIQUE ou ACL não avançam esses campos em memória. Auditoria e efeitos próprios de callbacks em objetos mutáveis continuam sujeitos ao contrato documentado de ausência de rollback em memória.
+Always use the entity returned by `save`/`saveAll`. Records receive a new instance by the canonical constructor, which needs to preserve the managed values of ID and version. Mutable classes receive generated ID and version only after confirmation of writing. Denials by version, UNIQUE or ACL do not advance these fields in memory. Auditing and callback effects on mutable objects remain subject to the documented contract of absence of rollback in memory.
 
-## Estado e valores aceitos
+## State and accepted values
 
-| Campo @Version | Estado novo | Versão da primeira gravação | Atualização |
+| Field @Version | New State | Version of the first recording | Update |
 |---|---|---|---|
-| `Long` ou `Integer` | `null` | `0` | valor esperado + 1 |
-| `long` ou `int` | `0` | `1` | valor esperado + 1 |
+| `Long` or `Integer` | `null` | `0` | expected value + 1 |
+| `long` or `int` | `0` | `1` | expected value + 1 |
 
-A versão passa a determinar se a entidade é nova, antes de examinar o ID. Assim, um ID já atribuído com versão wrapper null solicita criação exclusiva. Uma versão wrapper zero já representa entidade existente. Na ausência de `@Version`, os comportamentos anteriores de criação/substituição permanecem.
+The version starts to determine if the entity is new, before examining the ID. Thus, an ID already assigned with wrapper null version requires exclusive creation. A wrapper zero version already represents existing entity. In the absence of `@Version`, previous creation/substitution behaviors remain.
 
-`Persistable.isNew()` continua sendo consultado, mas precisa concordar com o estado indicado pela versão; inconsistências são recusadas antes da escrita. A biblioteca não muda flags próprias de Persistable.
+`Persistable.isNew()` continues to be consulted, but needs to agree with the state indicated by the version. Inconsistencies are refused before writing. The library does not change Persistable's own flags.
 
-São aceitos somente os quatro tipos da tabela, com um único campo de versão na hierarquia. Valores negativos e overflow são recusados. No máximo do tipo, ainda é possível ler ou excluir a entidade com a versão correta, mas não atualizá-la. A versão deve ser persistente, gravável (ou componente de record) e distinta de ID, TTL e campos de auditoria. A anotação é inspecionada em campos, como `@Id`.
+Only the four types of the table are accepted, with a single version field in the hierarchy. Negative and overflow values are refused. At most, it is still possible to read or delete the entity with the correct version, but not update it. The version should be persistent, etching (or record component) and distinct from ID, TTL and audit fields. The annotation is inspected in fields such as `@Id`.
 
-O nome JSON pode ser renomeado com Jackson, inclusive `@JsonProperty("rev.no")`. A versão gravada precisa ser um inteiro JSON exato, legível de volta pela entidade. Serialização numérica como string é recusada antes do transporte. Documentos escritos externamente devem seguir esse mesmo formato; strings, floats e ausência do campo não equivalem à versão inteira esperada.
+The name JSON can be renamed with Jackson, including `@JsonProperty("rev.no")`. The recorded version needs to be an exact whole JSON, readable back by the entity. Numeric serialization as string is refused before transport. Documents written externally must follow that same format. Strings, floats and absence of field do not equal the entire expected version.
 
-## Comparação no servidor
+## Server-side comparison
 
-Um script EVAL executa, sob o isolamento do Datadam:
+A script EVAL executes, under Datadam isolation:
 
-1. Lê somente o campo de versão via JSON.GET.
-2. Na criação, exige chave ausente; na atualização/exclusão, exige a versão esperada.
-3. Para salvar com TTL, verifica a permissão PEXPIRE antes de escrever.
-4. Executa JSON.SET da raiz contendo **conteúdo e nova versão juntos**, com NX na criação e XX na atualização; depois aplica o TTL, quando especificado. Para excluir, executa DEL após a comparação.
+1. Read only the version field via JSON.GET.
+2. In creation, it requires missing key. In update/exclusion, it requires the expected version.
+3. To save with TTL, check permission PEXPIRE before writing.
+4. Runs JSON.SET root containing **content and new version together**, with NX in creation and XX in update. Then applies TTL, when specified. To delete, run DEL after comparison.
 
-A comparação não é feita no cliente. A aritmética usa os inteiros de Java e a comparação usa o texto inteiro exato devolvido pelo JSON.GET, sem converter a versão para o número de ponto flutuante de Lua. Isso preserva valores Long acima de 2^53, inclusive Long.MAX_VALUE.
+The comparison is not made in the client. The arithmetic uses the integers of Java and the comparison uses the exact whole text returned by JSON.GET, without converting the version to the floating point number of the Moon. This preserves Long values above 2^53, including Long.MAX_VALUE
 
-Uma atualização não recria uma entidade removida ou expirada. Criação duplicada e versão obsoleta/ausente resultam em `OptimisticLockingFailureException`. Conflito com índice UNIQUE continua sendo `DuplicateKeyException`; conteúdo e versão pertencem ao mesmo JSON.SET, portanto uma recusa UNIQUE não pode incrementar a versão separadamente.
+An update does not recreate an entity removed or expired. Duplicate creation and obsolete/absent version result in `OptimisticLockingFailureException`. Conflict with index UNIQUE remains `DuplicateKeyException`. Content and version belong to the same JSON.SET, therefore a refusal UNIQUE cannot increase the version separately.
 
-Recusas por versão e UNIQUE preservam o documento inteiro, seus índices IDX/FT e a data absoluta de expiração. Um save bem-sucedido respeita o TTL por entidade ou por tipo; sem política explícita, preserva a expiração existente. `persist(id)` é uma operação explícita somente de expiração: não incrementa a versão do documento.
+Refusals by version and UNIQUE preserve the entire document, its indexes IDX/FT and the absolute expiration date. A successful save respects TTL by entity or type. Without explicit policy, preserves the existing expiration. `persist(id)` is an explicit expiry only operation: it does not increase the version of the document.
 
-Permissões necessárias: EVAL, JSON.GET e JSON.SET para salvar; PEXPIRE quando há TTL; DEL para excluir, além do acesso às chaves. O usuário de aplicação local já possui essas permissões; não precisa administrar índices.
+Permissions required: EVAL, JSON.GET and JSON.SET to save; PEXPIRE when there are TTL; DEL to exclude, in addition to access to keys. The local application user already has such permissions. No need to administer indexes.
 
-## Auditoria, callbacks e exclusão
+## Auditing, callbacks, and deletion
 
-A ordem permanece `BeforeConvert → auditoria → BeforeSave → escrita → AfterSave`. Os callbacks anteriores à escrita recebem a versão esperada; AfterSave recebe a nova versão confirmada. AfterConvert recebe a versão lida. Callbacks não podem trocar a versão, a identidade ou o estado novo capturado. Uma violação em AfterSave é reportada por `AfterSaveCallbackException`, pois a escrita já ocorreu.
+The order remains `BeforeConvert → auditing → BeforeSave → write → AfterSave`. Callbacks prior to writing receive the expected version; AfterSave receives the new confirmed version. AfterConvert receives the read version. Callbacks cannot change the version, identity or new state captured. A violation in AfterSave is reported by `AfterSaveCallbackException`, because the writing has already occurred.
 
-Datas/autores de criação usam a decisão de estado baseada na versão, mesmo com ID atribuído. Os campos de criação recebidos são preservados em atualizações; a biblioteca não autentica valores que a aplicação já entregou alterados. O exemplo HTTP carrega os metadados existentes e preserva a versão esperada enviada pelo cliente.
+Creation dates/authors use the status decision based on the version, even with assigned ID. The creation fields received are preserved in updates. The library does not authenticate values that the application has already delivered modified. Example HTTP loads existing metadata and preserves the expected version sent by the client.
 
-`delete(entity)` exige uma versão persistida e correspondente ao documento atual; não incrementa a versão. Uma entidade nova, obsoleta, removida ou expirada gera conflito. `deleteById(id)` lê a versão atual e faz exclusão condicionada a ela: uma atualização entre a leitura e a exclusão é protegida. Se o ID já está ausente, é uma operação sem efeito. Como recebe apenas o ID, esse método não conhece a versão vista anteriormente pelo chamador; para exigir a versão do cliente, use `delete(entity)`.
+`delete(entity)` requires a persistent version corresponding to the current document. It does not increase the version. A new, obsolete, removed or expired entity generates conflict. `deleteById(id)` reads the current version and excludes it conditionally: an update between the reading and the exclusion is protected. If the ID is already absent, it is a no-effect operation. As it receives only the ID, this method does not know the version previously seen by the caller. To require the client's version, use `delete(entity)`.
 
-`saveAll`, `deleteAll(entities)`, `deleteAllById` e `deleteAll()` são sequenciais e param na primeira falha; operações já confirmadas permanecem. Não são transações e não há repetição automática.
+`saveAll`, `deleteAll(entities)`, `deleteAllById` and `deleteAll()` are sequential and stop in the first failure. Operations already confirmed remain. They are not transactions and there is no automatic repetition.
 
-## Comandos diretos, migração e limites
+## Direct commands, migration, and limits
 
-Comandos nativos por `DatadamCommands` não executam auditoria, callbacks ou incremento condicionado de versão. Um escritor externo que modifica o conteúdo sem participar do protocolo pode permitir que uma atualização posterior sobrescreva seu trabalho. Todos os escritores devem adotar a mesma comparação/incremento para obter essa proteção. Não use JSON.NUMINCRBY isolado na versão para simular a operação completa.
+Native commands by `DatadamCommands` do not perform audit, callbacks or conditional version increment. An external writer who modifies the content without participating in the protocol may allow a later update to overwrite his work. All writers must adopt the same comparison/encrement to obtain this protection. Do not use JSON.NUMINCRBY isolated in the version to simulate the complete operation.
 
-Documentos antigos sem versão **não são migrados automaticamente**. Adicionar a anotação não autoriza sobrescrevê-los: tanto a tentativa de criação quanto uma atualização com contador atribuído são recusadas. Planeje uma migração explícita com escritores suspensos ou um protocolo coordenado, atribua um inteiro válido e só então ative os repositórios versionados. Para primitivos, escolha um valor inicial persistido maior que zero.
+Old documents without version **are not automatically migrated**. Adding annotation does not authorize overwriting them: both the creation attempt and an upgrade with assigned counter are refused. Plan an explicit migration with suspended writers or a coordinated protocol, assign a valid whole and only then activate the versioned repositories. For primitives, choose a persistent initial value greater than zero.
 
-O contador protege uma encarnação da entidade. Se a chave for excluída/expirar e o mesmo ID for reutilizado, o contador reinicia; uma cópia antiga com contador igual ao da nova entidade não pode ser distinguida apenas pelo `@Version` numérico (problema ABA). Evite reciclar IDs; UUID é o padrão do gerador. Uma garantia entre encarnações exigiria também um token de identidade próprio.
+The counter protects an incarnation of the entity. If the key is deleted/expired and the same ID is reused, the counter restarts. An old copy with the same counter as the new entity cannot be distinguished only by `@Version` numerical (problem ABA). Avoid recycling IDs; UUID is the standard of the generator. A guarantee between incarnations would also require a token of own identity.
 
-O servidor não oferece rollback geral de scripts. Continuam válidos os [limites de durabilidade de documento e TTL](entity-ttl.md): uma escrita UNIQUE pode antecipar commit, então documento + TTL não têm garantia de commit durável conjunto após crash. Conteúdo e versão, por sua vez, são gravados no mesmo JSON.SET. Uma falha de transporte pode ocorrer depois da escrita e deixar o resultado incerto; não há retry automático. Releia o estado antes de decidir como recuperar a operação.
+The server does not offer general rollback scripts. The [Document durability limits and TTL](entity-ttl.md) remain valid: a writing UNIQUE can anticipate commit, so document + TTL have no guarantee of durable commit set after crash. Content and version, in turn, are recorded in the same JSON.SET. A transport failure may occur after writing and leave the result uncertain. There is no automatic retry. Reread the status before deciding how to recover the operation.
 
-## Exemplo HTTP
+## HTTP example
 
-`VersionedNote` combina ID gerado, `@Version Long`, auditoria, callbacks, TTL de cinco minutos e índices IDX/FT com referência UNIQUE. A API local usa `/versioned-notes`:
+`VersionedNote` combines generated ID, `@Version Long`, audit, callbacks, TTL five minutes and indexes IDX/FT with reference UNIQUE. A API local uses `/versioned-notes`:
 
 ```powershell
 $data = @{ reference = [guid]::NewGuid().ToString(); category = 'draft'; text = 'original' }
@@ -79,14 +79,14 @@ $first = Invoke-RestMethod http://127.0.0.1:8080/versioned-notes -Method Post -C
 $data.version = $first.version # zero
 $data.text = 'alterado'
 $current = Invoke-RestMethod "http://127.0.0.1:8080/versioned-notes/$($first.id)" -Method Put -ContentType application/json -Body ($data | ConvertTo-Json)
-# Repetir esse PUT com version=0 retorna HTTP 409; current.version é 1.
+# Repeat this PUT with version=0 returns HTTP 409; current.version is 1.
 Invoke-RestMethod "http://127.0.0.1:8080/versioned-notes/$($current.id)?version=$($current.version)" -Method Delete
 ```
 
-POST exige versão ausente/null. PUT exige a versão esperada no corpo; DELETE exige `?version=...`. A API retorna HTTP 409 para versão obsoleta e UNIQUE e HTTP 400 para entrada inválida. Uma chave ausente no carregamento HTTP retorna 404. A versão do cliente não é substituída pela versão mais recente durante o carregamento dos campos de auditoria.
+POST requires an absent or null version. PUT requires the expected version in the request body. DELETE requires `?version=...`. The API returns HTTP 409 for a stale version or UNIQUE constraint violation, HTTP 400 for invalid input, and HTTP 404 when loading a missing key. Loading audit fields preserves the version supplied by the client.
 
-## Validação
+## Validation
 
-`EntityVersionTest` cobre metadados, estado, tipos, overflow, callbacks, serialização e aplicação de ID/versão somente após confirmação. `OptimisticLockingIntegrationIT` usa o Datadam real e duas conexões de pools independentes para a disputa, além de TTL, IDX/FT, UNIQUE, exclusão concorrente, expiração, auditoria, ACL, lotes, precisão int64, migração recusada e HTTP.
+`EntityVersionTest` covers metadata, status, types, overflow, callbacks, serialization and ID/version application only after confirmation. `OptimisticLockingIntegrationIT` uses the actual Datadam and two independent pool connections for the dispute, in addition to TTL, IDX/FT, UNIQUE, concurrent exclusion, expiration, audit, ACL, batches, int64 accuracy, refused migration and HTTP.
 
-Execute a suíte completa e suba o exemplo com `./scripts/run-local.ps1 -Restart -IntegrationTests -Background`.
+Run the complete suite and go up the example with `./scripts/run-local.ps1 -Restart -IntegrationTests -Background`.

@@ -1,8 +1,8 @@
-# Auditoria e callbacks
+# Auditing and callbacks
 
-O item 1.3 usa `AuditingHandler` e `EntityCallbacks` do Spring Data Commons para oferecer auditoria opcional e callbacks síncronos. Não depende de notificações de keyspace nem de comandos administrativos.
+The item 1.3 uses `AuditingHandler` and `EntityCallbacks` from Spring Data Commons to provide optional audit and synchronous callbacks. It does not depend on keyspace notifications or administrative commands.
 
-## Ativar auditoria
+## Enable auditing
 
 ```java
 @Configuration
@@ -25,53 +25,53 @@ public record Note(
 ) {}
 ```
 
-As quatro anotações são de `org.springframework.data.annotation` e podem ser usadas seletivamente. Para registrar apenas datas, não é necessário fornecer `AuditorAware`. Sem `@EnableDatadamAuditing`, as anotações não ativam preenchimento automático. Os callbacks funcionam independentemente da auditoria.
+The four notes are `org.springframework.data.annotation` and can be used selectively. To record only dates, it is not necessary to provide `AuditorAware`. Without `@EnableDatadamAuditing`, the notes do not activate automatic filling. Callbacks work independently of the audit.
 
-### Relógio e autor
+### Clock and auditor
 
-Um `DateTimeProvider` fornece o instante da operação. A biblioteca usa um bean disponível desse tipo; `dateTimeProviderRef` seleciona um provedor específico. Sem provedor, obtém um Clock disponível ou usa UTC e produz `Instant.now(clock)`. O relógio de auditoria não altera o relógio do Datadam nem o cálculo de TTL.
+A `DateTimeProvider` provides the instant of the operation. The library uses an available bean of this type; `dateTimeProviderRef` selects a specific provider. Without a provider, it gets a clock available or uses UTC and produces `Instant.now(clock)`. The audit watch does not change the Datadam watch or the calculation of TTL.
 
-O autor vem de `AuditorAware<T>`, cujo tipo deve ser compatível com os campos de autor. Quando houver múltiplos candidatos, escolha por `auditorAwareRef` ou `@Primary`. Optional vazio preserva os valores existentes; o mesmo vale para datas quando o provedor temporal não fornece um valor.
+The author comes from `AuditorAware<T>`, whose type must be compatible with the author fields. When there are multiple candidates, choose by `auditorAwareRef` or `@Primary`. Optionally empty preserves existing values. The same applies to dates when the time provider does not provide a value.
 
-`modifyOnCreate = true` preenche também os campos de alteração na criação. Com false, preenche apenas os de criação nesse momento. `setDates = false` permite preencher autores sem datas. Ambos são atributos de `@EnableDatadamAuditing`.
+`modifyOnCreate = true` also fills the fields of change in creation. With false, fills only those of creation at that time. `setDates = false` allows to fill authors without dates. Both are attributes of `@EnableDatadamAuditing`.
 
-Prefira Instant para persistência. Também foram validadas conversões para Long em milissegundos e Date. Outros tipos dependem da conversão disponível no Spring para o valor fornecido; incompatibilidades falham antes da escrita.
+Prefer Instant for persistence. Conversions to Long in milliseconds and Date have also been validated. Other types depend on the conversion available in Spring for the value provided. Incompatibilities fail before writing.
 
-### Estado novo e campos de criação
+### New entities and creation fields
 
-O estado é capturado uma vez na entrada de save, antes de callbacks, auditoria e geração de ID, pela política do item 1.2. Entidades novas recebem dados de criação; atualizações recebem apenas dados de alteração. Classes mutáveis, campos herdados e records são suportados. Em records, o handler retorna novas instâncias; utilize sempre o retorno de save/saveAll.
+The state is captured once at the save input, before callbacks, audit and ID generation, by the item policy 1.2. New entities receive creation data. Updates receive only alteration data. Changeable classes, inherited fields and records are supported. In records, the handler returns new instances. Always use the save/saveAll return.
 
-A detecção não consulta o banco. Sem @Version, um ID atribuído normalmente indica estado existente, mesmo que a chave ainda não esteja armazenada; use `Persistable.isNew() == true` para declarar explicitamente uma criação. Com @Version, uma versão wrapper null ou primitiva zero indica criação mesmo com ID atribuído; Persistable, se implementado, precisa concordar.
+The detection does not consult the bank. Without @Version, an assigned ID usually indicates existing status, even if the key is not yet stored. Use `Persistable.isNew() == true` to explicitly declare a creation. With @Version, a null or zero primitive wrapper version indicates creation even with assigned ID; Persistable, if implemented, needs to agree.
 
-Os campos de criação fornecidos na entidade são preservados em atualizações. Isso não significa buscar os valores originais no banco nem impedir que a aplicação entregue valores forjados antes de chamar a biblioteca. Uma API deve receber DTOs sem campos de auditoria e carregar a entidade existente antes de modificar seus campos de negócio, como faz `/audited-notes`.
+The creation fields provided in the entity are preserved in updates. This does not mean searching for the original values in the bank or preventing the application from delivering forged values before calling the library. A API must receive DTOs without audit fields and load the existing entity before changing its business fields, as it does `/audited-notes`.
 
-Nesta versão, anotações de auditoria devem estar na raiz da entidade. Metadados embutidos e implementações de `Auditable` são recusados. Cada campo deve ter uma única função de auditoria, ser serializado no JSON e não pode ser simultaneamente ID ou TTL.
+In this version, audit notes should be at the root of the entity. Embedded metadata and implementations of `Auditable` are refused. Each field should have a single audit function, be serialized in JSON and cannot simultaneously be ID or TTL.
 
-## Callbacks e ordem
+## Callbacks and execution order
 
-As interfaces em `com.anlohse.datadam.spring.callback` estendem `EntityCallback<T>` do Spring Data.
+The `com.anlohse.datadam.spring.callback` interfaces extend `EntityCallback<T>` from Spring Data.
 
-| Callback | Momento |
+| Callback | Time |
 |---|---|
-| BeforeConvert | Antes da auditoria e da serialização |
-| BeforeSave | Depois da auditoria, antes da geração de ID e da escrita |
-| AfterSave | Depois da confirmação da escrita, com a chave efetiva |
-| AfterConvert | Após desserializar cada entidade lida |
+| BeforeConvert | Before audit and serialization |
+| BeforeSave | After audit, before ID generation and writing |
+| AfterSave | After confirmation of writing, with the effective key |
+| AfterConvert | After deskilling each entity read |
 
-O ciclo de save é:
+The saving cycle is:
 
-1. Validar mapeamento e capturar ID/estado novo.
-2. Executar BeforeConvert.
-3. Aplicar auditoria, se habilitada.
-4. Executar BeforeSave.
-5. Validar TTL, gerar ID quando necessário e preparar o JSON.
-6. Gravar com a política NX/TTL correspondente.
-7. Após sucesso, aplicar o ID gerado à instância mutável, quando aplicável.
-8. Executar AfterSave e retornar a entidade resultante.
+1. Validate mapping and capture new ID/state.
+2. Run BeforeConvert.
+3. Apply audit if enabled.
+4. Run BeforeSave.
+5. Validate TTL, generate ID when necessary and prepare the JSON.
+6. Record with the corresponding NX/TTL policy.
+7. After success, apply the generated ID to the changeable instance, when applicable.
+8. Run AfterSave and return the resulting entity.
 
-`DatadamSaveContext` informa tipo mapeado, prefixo, chave e estado novo capturado. A chave é null nas etapas anteriores à gravação quando o ID está ausente. Use DatadamIdGenerator para gerar IDs; callbacks anteriores não podem trocar a identidade ou o estado novo.
+`DatadamSaveContext` informs type mapped, prefixed, key and new status captured. The key is null in the steps prior to recording when ID is missing. Use DatadamIdGenerator to generate IDs. Previous callbacks cannot change identity or new status.
 
-Callbacks da mesma etapa obedecem a Ordered ou @Order, com menores valores primeiro. A ordem vale dentro de cada operação e não serializa chamadas concorrentes. Beans de callback precisam ser seguros para uso simultâneo.
+Callbacks of the same stage obey the Ordered or @Order, with lower values first. The order is valid within each operation and does not serialize calls competitors. Callback Beans need to be safe for simultaneous use.
 
 ```java
 @Component
@@ -87,33 +87,33 @@ class ValidateNote implements BeforeSaveCallback<Note> {
 }
 ```
 
-A configuração automática encontra os beans no ApplicationContext. Prefira classes com tipo genérico declarado para que o Spring filtre as entidades. Lambdas são aceitas, mas podem perder essa informação de tipo em runtime.
+The automatic configuration finds the beans in ApplicationContext. It prefers classes with declared generic type so that Spring filters the entities. Lambdas are accepted, but they may lose this type information in runtime.
 
-Um callback deve retornar uma entidade compatível e não null, podendo devolver outra instância. ID não pode mudar. Com auditoria ativa, callbacks também não podem alterar criação de uma entidade existente ou sobrescrever os campos preenchidos pelo handler. Se substituírem uma instância mutável, o ID será aplicado à instância efetivamente salva; use sempre o retorno.
+A callback must return a compatible entity and not null, and may return another instance. ID cannot change. With active audit, callbacks cannot change the creation of an existing entity or overwrite the fields filled by the handler. If they replace a moving instance, the ID will be applied to the effectively saved instance. Always use the return.
 
-### Leituras e outras operações
+### Reads and other operations
 
-AfterConvert é aplicado em findById, findAll, findAllById, lookup e consultas IDX/FT, anotadas ou derivadas. Pode enriquecer o retorno sem regravar o documento; identidade e campos de auditoria são preservados.
+AfterConvert is applied to findById, findAll, findAllById, lookup and queries IDX/FT, annotated or derived. It can enrich the return without rerecording the document. Identity and audit fields are preserved.
 
-Contagens e existência nativas sem materialização não disparam AfterConvert. O método CRUD existsById atualmente usa findById e, portanto, dispara o callback se encontrar uma entidade; existsBy derivado usa índices e não o dispara.
+Native counts and existence without materialization do not trigger AfterConvert. The CRUD existsById method currently uses findById and therefore triggers the callback if you find an entity. ExistsBy derived uses indexes and does not trigger it.
 
-Comandos de DatadamCommands, persist(id) e exclusões ficam fora do ciclo de save. Este item não adiciona callbacks de exclusão nem auditoria a comandos nativos executados diretamente.
+DatadamCommands commands, persistence(id) and deletions stay out of the save cycle. This item does not add exclusion callbacks or audit to native commands executed directly.
 
-### Exceções e efeitos em memória
+### Exceptions and in-memory effects
 
-BeforeConvert e BeforeSave podem recusar a operação com uma exceção; a biblioteca não escreve o documento nesse caso. Falhas UNIQUE, de ACL ou de transporte também não executam AfterSave.
+BeforeConvert and BeforeSave may refuse the operation with one exception. The library does not write the document in this case. Failures UNIQUE, of ACL or transport also do not execute AfterSave.
 
-Alterações diretas no objeto e outros efeitos executados pelo próprio callback não recebem rollback. O handler pode preencher campos da instância mutável antes da escrita; isso não comprova persistência. O ID gerado pela biblioteca continua sendo aplicado à instância mutável somente após sucesso.
+Direct changes to the object and other effects executed by the callback itself do not receive rollback. The handler can fill fields of the changeable instance before writing. This does not prove persistence. The ID generated by the library continues to be applied to the changeable instance only after success.
 
-Uma falha de AfterSave é propagada como `AfterSaveCallbackException`: a escrita já foi confirmada, e getKey() identifica a chave gravada. Não há rollback ou repetição automática. Alterações de negócio feitas nessa etapa afetam apenas o retorno; prefira usá-la para observação ou informação transitória.
+An AfterSave failure is spread as `AfterSaveCallbackException`: the writing has already been confirmed, and getKey() identifies the recorded key. There is no rollback or automatic repetition. Business changes made at this stage affect only the return. Prefer to use it for observation or transitional information.
 
-AfterConvert não grava. Enriquecimentos devem preferir campos ignorados no JSON para não serem persistidos por um save posterior. Autores complexos devem ser tratados como valores imutáveis: a proteção não é um mecanismo de segurança nem um snapshot profundo de todo o grafo.
+AfterConvert does not record. Enrichments should prefer fields ignored in JSON in order not to be persisted by a subsequent save. Complex authors should be treated as unchangeable values: protection is not a security mechanism nor a deep snapshot of the entire graph.
 
-Os limites de transporte, lote sequencial e durabilidade documento/TTL com UNIQUE continuam documentados nos itens anteriores. O item 2.1 adiciona [optimistic locking com @Version](optimistic-locking.md), integrado à detecção de estado e aos callbacks. BeforeConvert/BeforeSave recebem a versão esperada e AfterSave recebe a nova versão; callbacks não podem alterá-la. Transações continuam fora deste escopo.
+The limits of transport, sequential lot and durability document/TTL with UNIQUE remain documented in the previous items. Item 2.1 adds [optimistic location com @Version](optimistic-locking.md), integrated with state detection and callbacks. BeforeConvert/BeforeSave receive the expected version and AfterSave receives the new version. Callbacks cannot change it. Transactions remain outside this scope.
 
-## Configuração manual
+## Manual configuration
 
-Os construtores antigos continuam sem auditoria e sem callbacks registrados. Para configurar explicitamente:
+The old builders still have no audit and no registered callbacks. To explicitly configure:
 
 ```java
 var auditing = new DatadamAuditing(
@@ -125,11 +125,11 @@ var template = new DatadamTemplate(commands, mapper,
     EntityCallbacks.create(new ValidateNote()), auditing);
 ```
 
-Um parâmetro de auditoria null desativa apenas o preenchimento automático; callbacks explícitos continuam funcionando.
+A null audit parameter disables only automatic filling. Explicit callbacks continue to work.
 
-## Exemplo HTTP e validação
+## HTTP example and validation
 
-A API `/audited-notes` usa records, ID gerado, TTL padrão de cinco minutos, índices IDX/FT e referência UNIQUE. O autor fixo de demonstração é `demo-application`; uma aplicação real deve fornecer sua identidade autenticada. AuditedNoteCallbacks remove espaços externos e recusa campos de negócio vazios. O DTO HTTP não recebe campos de auditoria.
+API `/audited-notes` uses records, generated ID, TTL five-minute standard, indexes IDX/FT and reference UNIQUE. The fixed author of the demonstration is `demo-application`. A real application must provide its authenticated identity. AuditedNoteCallbacks removes external spaces and refuses empty business fields. DTO HTTP does not receive audit fields.
 
 ```powershell
 $noteData = @{ reference=[guid]::NewGuid().ToString('N'); category='demo'; text='  Nota auditada  ' }
@@ -139,4 +139,4 @@ $noteData.text = 'Nota atualizada'
 Invoke-RestMethod "http://127.0.0.1:8080/audited-notes/$($saved.id)" -Method Put -ContentType application/json -Body ($noteData | ConvertTo-Json)
 ```
 
-AuditingLifecycleTest valida relógio, autores, conversões, configuração, proteções e ordem. AuditingIntegrationIT usa Datadam real para persistência, TTL, UNIQUE, recusas, materialização por índices e HTTP.
+AuditingLifecycleTest validates watch, authors, conversions, configuration, protections and order. AuditingIntegrationIT uses Real Datadam for persistence, TTL, UNIQUE, refusals, index materialization and HTTP.

@@ -1,8 +1,8 @@
-# TTL de entidades
+# Entity TTL
 
-O item 1.1 adiciona expiração declarativa às entidades JSON. O Datadam mantém os índices atualizados quando o documento recebe um prazo, perde a expiração ou expira.
+The item 1.1 adds declarative expiration to entities JSON. Datadam keeps the indexes updated when the document receives a deadline, loses expiration or expires.
 
-## Padrão por tipo e substituição por entidade
+## Type defaults and entity overrides
 
 ```java
 @DatadamDocument(prefix = "note:", timeToLive = 60)
@@ -13,77 +13,77 @@ public record Note(
 ) {}
 ```
 
-O padrão do tipo acima é de 60 segundos. `ttlMillis = 1500L` substitui esse padrão por 1,5 segundo; `ttlMillis = null` usa o padrão. `timeToLiveUnit` altera a unidade do padrão:
+The type above defaults to 60 seconds. Use `ttlMillis = 1500L` to override it with 1.5 seconds, or `ttlMillis = null` to use the default. Set `timeToLiveUnit` to change the unit of the default TTL:
 
 ```java
 @DatadamDocument(prefix = "session:", timeToLive = 30, timeToLiveUnit = TimeUnit.MINUTES)
 public record Session(@Id String id, String userId) {}
 ```
 
-O campo `@DatadamTimeToLive` aceita byte, short, int e long, seus wrappers e `Duration`. Para Duration, a duração já informa a unidade:
+The field `@DatadamTimeToLive` accepts byte, short, int and long, its wrappers and `Duration`. For Duration, the duration already informs the unit:
 
 ```java
 @DatadamDocument(prefix = "draft:")
 public record Draft(@Id String id, @DatadamTimeToLive Duration lifetime) {}
 ```
 
-Há no máximo um campo de TTL por entidade, inclusive por herança. Ele não pode ser estático nem compartilhar o campo `@Id`. Classes mutáveis e records são aceitos. Campos com wrappers ou Duration podem ser null; primitivos precisam ser preenchidos com um valor válido antes de salvar.
+There is at most one field of TTL per entity, including by inheritance. It cannot be static or share the field `@Id`. Mutable classes and records are accepted. Fields with wrappers or Duration can be null. Primitives need to be filled with a valid value before saving.
 
-## Regras de criação e atualização
+## Create and update rules
 
-| Situação | Efeito de `save` |
+| Situation | Effect of `save` |
 |---|---|
-| Campo TTL com valor positivo | Aplica esse prazo novamente, contado a partir da gravação no servidor |
-| Campo null ou inexistente, com padrão positivo no tipo | Aplica o padrão novamente |
-| Campo null ou inexistente, sem padrão no tipo | Preserva a expiração existente; uma chave nova fica sem expiração |
-| `timeToLive = -1` no tipo | Desabilita o padrão; é o valor padrão da anotação |
-| Campo TTL zero ou negativo | Recusa antes de enviar qualquer comando |
-| Padrão do tipo zero ou menor que -1 | Recusa o mapeamento ao criar o repositório |
-| Precisão inferior a um milissegundo ou overflow | Recusa sem truncar ou saturar o valor |
+| Field TTL with positive value | Apply this deadline again, counted from the recording on the server |
+| Field null or non-existent, with positive pattern in type | Apply the pattern again |
+| Invalid or non-existent field, no pattern in type | Maintains existing expiration. A new key runs out of expiration |
+| `timeToLive = -1` in type | Disable pattern. Is the standard value of annotation |
+| Field TTL zero or negative | Refuse before sending any command |
+| Standard zero or less than -1 | Refuses mapping when creating repository |
+| Accuracy less than one millisecond or overflow | Refuse to truncate or saturate the value |
 
-TTL positivo é uma política de renovação por gravação. Um `save` bem-sucedido reinicia o prazo, mesmo quando os outros campos não mudam. Ler uma entidade ou executar uma busca não renova o prazo.
+TTL positive is a policy of renewal by recording. A successful `save` restarts the deadline, even when the other fields do not change. Reading an entity or executing a search does not renew the deadline.
 
-A resolução é de um milissegundo, e o intervalo aceito é de 1 até `Long.MAX_VALUE / 2` milissegundos. O limite deixa espaço para o servidor somar o prazo ao seu relógio de época sem overflow no uso normal. As conversões entre unidades são exatas: 2000 microssegundos são aceitos como 2 ms; 2001 microssegundos são recusados.
+The resolution is one millisecond, and the accepted interval is 1 to `Long.MAX_VALUE / 2` milliseconds. The limit leaves room for the server to add time to its timepiece without overflow in normal use. Conversions between units are exact: 2000 microseconds are accepted as 2 ms; 2001 microseconds are refused.
 
-O campo anotado continua sendo um campo JSON normal, sujeito às regras do ObjectMapper. Quando serializado, guarda a política solicitada, não uma contagem regressiva. Ler `ttlMillis = 1500` não significa que ainda restam 1500 ms; salvar novamente com esse valor renova o prazo para 1500 ms.
+The annotated field remains a normal JSON field, subject to the rules of the ObjectMapper. When serialized, it keeps the policy requested, not a countdown. Reading `ttlMillis = 1500` does not mean that there are still 1500 ms left. Saving again with this value renews the deadline to 1500 ms.
 
-## Remover a expiração
+## Remove expiration
 
 ```java
 boolean removed = repository.persist(id);
-// Ou:
+// Or:
 boolean removedByTemplate = template.persist(id, new EntityModel<>(Note.class));
 ```
 
-`persist` executa somente PERSIST, preservando conteúdo e índices. Retorna true quando remove um prazo, false se a chave não existe ou já está sem expiração. Não faz uma leitura seguida de uma regravação.
+`persist` executes only PERSIST, preserving content and indices. Returns true when it removes a term, false if the key does not exist or is already without expiration. It does not make a reading followed by a rerecording.
 
-O nome significa tornar a chave persistente em relação à expiração; não significa forçar um fsync. O próximo `save` com uma política positiva, explícita ou padrão, aplicará a expiração novamente. Para preservar a chave sem prazo em futuras gravações, use uma entidade sem política de TTL.
+The name means to make the key persistent in relation to expiration. It does not mean to force an fsync. The next `save` with a positive policy, explicit or standard, will apply the expiration again. To preserve the key without term in future writes, use an entity without policy of TTL.
 
-Zero e negativos no campo não são atalhos para excluir a chave ou remover a expiração. Exclusão continua sendo feita por `deleteById` e remoção de expiração por `persist`.
+Zero and negative in the field are not shortcuts to delete the key or remove the expiration. Exclusion continues to be made by `deleteById` and expiration removal by `persist`.
 
-## Gravação, UNIQUE e permissões
+## Writes, UNIQUE, and permissions
 
-Sem política de TTL, `save` mantém o caminho anterior: um JSON.SET, que preserva o prazo existente.
+Without a policy of TTL, `save` maintains the previous path: a JSON.SET, which preserves the existing deadline.
 
-Com política positiva, a biblioteca envia um EVAL com script fixo e chave/documento/prazo em argumentos separados. O script verifica permissão de PEXPIRE sem alterar a chave, executa JSON.SET e, se a gravação tiver sucesso, aplica PEXPIRE.
+With a positive policy, the library sends a EVAL with fixed script and key/document/time in separate arguments. The script checks PEXPIRE permission without changing the key, runs JSON.SET and, if the recording succeeds, applies PEXPIRE.
 
-A verificação usa um argumento deliberadamente não numérico de PEXPIRE. No Datadam, ACL é verificada antes do parse do valor; o erro esperado de número inválido comprova que a verificação de permissão passou sem modificar a chave. Uma recusa ou resposta inesperada encerra o script antes de JSON.SET. Esse comportamento foi validado no servidor local e é uma dependência explícita da implementação.
+The verification uses a deliberately non-numerical argument of PEXPIRE. In Datadam, ACL is verified before parse of value. The expected invalid number error proves that the permission verification passed without modifying the key. An unexpected refusal or response closes the script before JSON.SET. This behavior was validated on the local server and is an explicit dependence on implementation.
 
-Uma recusa por UNIQUE acontece em JSON.SET e encerra o script antes de alterar a expiração. Os testes comparam a data absoluta de expiração, não apenas um TTL aproximado, para verificar que uma atualização recusada não renovou nem encurtou o prazo. Uma inserção recusada não cria o documento.
+A UNIQUE refusal occurs in JSON.SET and closes the script before changing the expiration. Tests compare the absolute expiration date, not just an approximate TTL, to check that a refused update did not renew or shorten the deadline. A refused insertion does not create the document.
 
-Além das permissões normais de gravação, o usuário precisa de `+eval +pexpire` e acesso à chave. `persist(id)` precisa de `+persist`. Inspecionar o prazo requer `+pttl` ou `+pexpiretime`; o save não precisa dessas permissões de leitura. Não é necessário conceder administração de índices ou toda a categoria de scripting.
+In addition to the normal recording permissions, the user needs `+eval +pexpire` and access to the key. `persist(id)` needs `+persist`. Inspecting the deadline requires `+pttl` or `+pexpiretime`. The save does not need these reading permissions. It is not necessary to grant index administration or the entire scripting category.
 
-### Limite de atomicidade e durabilidade
+### Atomicity and durability limits
 
-Outros clientes não observam o documento entre JSON.SET e PEXPIRE, porque o script tem execução isolada. TTL inválido é recusado antes de EVAL; permissões insuficientes e UNIQUE são tratados antes de uma alteração parcial nos casos documentados e testados.
+Other customers do not observe the document between JSON.SET and PEXPIRE, because the script has isolated execution. TTL invalid is refused before EVAL. Insufficient permissions and UNIQUE are treated before partial alteration in documented and tested cases.
 
-Isso não cria rollback de scripts. Uma falha inesperada após uma escrita pode mantê-la, conforme o contrato do servidor. A documentação e a implementação do Datadam também indicam que uma escrita em índice UNIQUE pode forçar um commit antes do fim do bloco. Portanto, esta API **não garante que documento e novo TTL sejam sempre uma única gravação durável em caso de crash** entre esses comandos quando há UNIQUE. Essa garantia exigiria uma operação nativa adicional ou uma mudança explícita no servidor, fora do item 1.1.
+This does not create script rollbacks. An unexpected failure after writing can keep it, according to the server's contract. Datadam documentation and implementation also indicate that an indexed UNIQUE writing can force a commit before the end of the block. Therefore, this API **does not guarantee that document and new TTL are always a single durable recording in case of crash** between these commands when there is UNIQUE. This guarantee would require an additional native operation or an explicit change in the server outside the item 1.1.
 
-Uma falha de transporte também pode deixar o cliente sem saber se a operação terminou. A biblioteca não repete a gravação automaticamente. Aplicações que precisem de recuperação conjunta após crash devem considerar esse limite.
+A transmission failure may also leave the client without knowing if the operation is over. The library does not automatically repeat the recording. Applications that need joint recovery after crash should consider this limit.
 
-## Exemplo executável
+## Runnable example
 
-`TemporaryNote`, `TemporaryNoteRepository` e a API `/temporary-notes` implementam o exemplo: padrão de 60 segundos e substituição opcional em milissegundos, com índices IDX, FT e UNIQUE.
+`TemporaryNote`, `TemporaryNoteRepository` and API `/temporary-notes` implement the example: 60-second standard and optional replacement in milliseconds, with indices IDX, FT and UNIQUE.
 
 ```powershell
 $note = @{
@@ -97,16 +97,16 @@ Invoke-RestMethod http://127.0.0.1:8080/temporary-notes -Method Post -ContentTyp
 Invoke-RestMethod "http://127.0.0.1:8080/temporary-notes/$($note.id)/ttl"
 Invoke-RestMethod 'http://127.0.0.1:8080/temporary-notes?category=demo'
 
-# Opcional: remove o prazo antes de expirar.
+# Optional: Remove the deadline before expiration.
 Invoke-RestMethod "http://127.0.0.1:8080/temporary-notes/$($note.id)/persist" -Method Post
 ```
 
-`GET /temporary-notes/{id}/ttl` devolve `remainingMilliseconds`: valor positivo para prazo ativo, -1 para chave sem expiração e -2 para chave ausente. Após expirar, `GET /temporary-notes/{id}` retorna 404 e a chave deixa de aparecer nos índices.
+`GET /temporary-notes/{id}/ttl` returns `remainingMilliseconds`: positive value for active term, -1 for non-expiration key and -2 for missing key. After expiring, `GET /temporary-notes/{id}` returns 404 and the key ceases to appear in the indexes.
 
-Atualizações inválidas retornam HTTP 400; referência UNIQUE de outra nota retorna 409. O usuário de aplicação continua sem permissão para criar índices. `SchemaApplication` prepara o schema com a credencial de migração.
+Invalid updates return HTTP 400. Reference UNIQUE from another note returns 409. The application user continues without permission to create indexes. `SchemaApplication` prepares the scheme with the migration credentials.
 
-## Validação
+## Validation
 
-Execute `scripts/run-local.ps1 -Restart -IntegrationTests -Background` para recompilar, validar e substituir a instância iniciada pelo script. `EntityTtlTest` cobre metadados e conversões; `EntityTtlIntegrationIT` cobre expiração real, índices, renovação, preservação, Duration, persist, UNIQUE, ACL, observação por outra conexão e HTTP.
+Execute `scripts/run-local.ps1 -Restart -IntegrationTests -Background` to recompile, validate and replace the instance initiated by the script. `EntityTtlTest` copper metadata and conversions; `EntityTtlIntegrationIT` copper actual expiration, indices, renewal, preservation, Duration, persistence, UNIQUE, ACL, observation by another connection and HTTP.
 
-O contrato nativo foi conferido nos documentos locais `docs/json.md`, `docs/commands.md`, `docs/security.md`, `docs/scripting.md` e `docs/transactions.md` do projeto C++ Datadam.
+The native contract was awarded in the local documents `docs/json.md`, `docs/commands.md`, `docs/security.md`, `docs/scripting.md` and `docs/transactions.md` of the C++ Datadam project.

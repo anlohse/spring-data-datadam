@@ -1,98 +1,98 @@
-# CI e preparação de releases — 8.2
+# CI and release preparation — 8.2
 
-O destino definido é **Maven Central, pelo Central Portal**. O projeto prepara um candidato verificável; publicar continua sendo uma ação separada. Não há upload, criação de tag, GitHub Release ou publicação automática em nenhum dos scripts/workflows desta entrega.
+The release destination is **Maven Central via the Central Portal**. The project prepares a verifiable release candidate. Publication is a separate step. These scripts and workflows do not upload artifacts, create tags or GitHub releases, or publish automatically.
 
-Desde 09/11/2026, o groupId e os pacotes Java usam **com.anlohse.datadam**, sob o namespace **com.anlohse**. Atualize dependências, imports e entry points anteriormente em `io.datadam`. Candidatos antigos devem ser reconstruídos, mesmo quando o groupId já estiver atualizado, para incorporar as novas classes, recursos e registros Boot. O montador também verifica o groupId do manifesto e as coordenadas dos POMs.
+Since November 9, 2026, the Maven groupId and Java packages use **com.anlohse.datadam** under the **com.anlohse** namespace. Update dependencies, imports, and entry points previously using `io.datadam`. Rebuild older candidates to include the new classes, resources, and Boot registrations, even if their groupId is already current. The bundle builder also verifies the groupId in the manifest and the Maven coordinates in the POMs.
 
 ## CI
 
-`.github/workflows/ci.yml` roda em push para main, pull requests e acionamento manual. Usa Ubuntu 24.04, PowerShell 7 e Java 25, com actions fixadas por SHA e permissão somente de leitura. Os workflows de CI e de candidato usam a imagem oficial Datadam 0.2.0. O runner baixa a referência por digest quando necessário e confere a revisão no rótulo OCI antes de iniciar os testes. [Release Datadam 0.2.0](https://github.com/anlohse/datadam/releases/tag/v0.2.0).
+`.github/workflows/ci.yml` runs on pushes to main, pull requests, and manual dispatch. It uses Ubuntu 24.04, PowerShell 7, Java 25, actions pinned by commit SHA, and read-only permissions. The CI and release candidate workflows use the official Datadam 0.2.0 image. The runner pulls the image by digest when needed and checks the OCI revision label before running the tests. [Datadam 0.2.0 release](https://github.com/anlohse/datadam/releases/tag/v0.2.0).
 
-`scripts/run-ci.ps1` executa os mesmos passos localmente:
+`scripts/run-ci.ps1` performs the same steps locally:
 
 ```powershell
 .\scripts\run-ci.ps1
 
-# Para reconstruir localmente a revisão fixada a partir do C++:
+# To reconstruct locally the revision fixed from C++:
 .\scripts\run-ci.ps1 -BuildDatadam -Source D:/cpp/workspaces/datadam
 ```
 
-O runner inicia um servidor descartável com ACL do demo em porta efêmera/loopback, executa `mvn install -Pintegration`, verifica os artefatos e empacota/executa o consumidor independente. A suíte inclui Java 17/21/25, TLS/ACL, reinício, perda de resposta e recuperação de backfill. Os testes de falha criam seus próprios contêineres. Ao terminar, remove somente os recursos que criou e restaura o ambiente. Não altera o servidor local do demo nem limpa seu volume. A execução Maven pode sobrescrever os JARs de target: use outro checkout se estiver executando o demo a partir deles.
+The runner starts a disposable server with ACL of the demo in ephemeral/loopback port, executes `mvn install -Pintegration`, checks the artifacts and packages/executes the independent consumer. The suite includes Java 17/21/25, TLS/ACL, restarts, loss of response and recovery of backfill. Failure tests create their own containers. At the end, it removes only the resources that created and restore the environment. It does not alter the local server of the demo or cleans its volume. The Maven execution can overwrite the target JARs: use another checkout if the demo is running from them.
 
-O workflow disponibiliza relatórios JUnit, logs da matriz e manifestos como artefatos de validação por 14 dias. O runner reutiliza a imagem baixada entre o servidor da suíte, os contêineres descartáveis e o consumidor. Credenciais TLS de inspeção são configuradas somente no Windows. Linux usa seu truststore normal.
+Workflow provides JUnit reports, matrix logs, and manifests as 14-day validation artifacts. Runner reuses the downloaded image between the suite server, disposable containers, and the consumer. Inspection credentials TLS are configured only on Windows. Linux uses its normal truststore.
 
-## Preparar um candidato
+## Prepare a release candidate
 
 ```powershell
 .\scripts\prepare-release.ps1 -Version 0.1.0-rc.1
-# Com chave real configurada fora do repositório, para um candidato destinado à publicação:
+# With real key configured outside the repository, for a candidate intended for publication:
 .\scripts\prepare-release.ps1 -Version 0.1.0-rc.1 -Sign
 ```
 
-O script cria uma cópia em `target/releases/<versão>-<UUID>/source`, muda a versão dos POMs e o campo SCM tag apenas nessa cópia, instala o parent e as três bibliotecas e executa o smoke test sobre esses JARs. Não muda a versão do checkout de desenvolvimento. Os testes unitários são reexecutados na versão candidata. A CI completa deve estar aprovada para o mesmo código antes da aprovação de uma release.
+The script copies the source to `target/releases/<version>-<UUID>/source`, changes the POM version and SCM tag only in that copy, installs the parent and three library artifacts, and runs a smoke test against those JARs. The development checkout keeps its version. Unit tests run again for the candidate version. The full CI suite must pass on the same code before the release is approved.
 
-É permitido preparar uma prévia local com alterações ainda não commitadas; `manifest.json` registra `dirtySource=true` e o commit de origem. Essa prévia não é uma release publicável. Commitar as alterações, revisar e preparar novamente de um checkout limpo são passos obrigatórios do checklist. O bundle não deve conter o demo nem o consumidor, somente os quatro POMs e os nove JARs de biblioteca/fontes/documentação.
+It is allowed to prepare a local preview with changes that have not yet been committed; `manifest.json` records `dirtySource=true` and the commit of origin. This preview is not a public release. Committing the changes, reviewing and preparing a clean checkout again are mandatory steps of the checklist. The bundle should not contain the demo or the consumer, only the four POMs and the nine JARs library/sources/documentation.
 
-Saídas:
+Outputs:
 
-- `bundle/`: POMs/JARs e assinaturas quando `-Sign` foi usado.
-- `manifest.json`: versão, commit, estado do checkout, destino, hashes SHA-256 e `published=false`.
-- `consumer-verification.json`: startup, versão carregada, health por PING e operações de negócio.
-- `central-repository/` e `central-bundle.zip`: layout `com/anlohse/datadam/<artefato>/<versão>`, com checksums MD5/SHA1/SHA256/SHA512 para cada POM/JAR e assinaturas dos payloads quando assinados.
-- `central-bundle.json`: hash do ZIP, contagem de payloads e `portalValidation=NOT_RUN`/`submitted=false`.
+- `bundle/`: POMs/JARs and signatures when `-Sign` was used.
+- `manifest.json`: version, commit, checkout status, destination, hashes SHA-256 and `published=false`.
+- `consumer-verification.json`: startup, loaded version, health by PING and business operations.
+- `central-repository/` and `central-bundle.zip`: layout `com/anlohse/datadam/<artifact>/<version>`, with checksums MD5/SHA1/SHA256/SHA512 for each POM/JAR and payload signatures when signed.
+- `central-bundle.json`: hash of ZIP, payload count and `portalValidation=NOT_RUN`/`submitted=false`.
 
-O comando `new-central-bundle.ps1 -Manifest <arquivo> -RequireSignatures` exige um candidato assinado e verifica os hashes de payload/assinatura antes de montar outro bundle em uma saída ainda não existente. Os hashes detectam alterações acidentais; não provam a identidade de quem assinou. O registro de `signed=true` indica que o perfil de assinatura terminou, e o Central Portal ainda fará suas próprias validações. A validação local desta entrega verificou também criptograficamente as assinaturas usando uma chave descartável.
+Use `new-central-bundle.ps1 -Manifest <file> -RequireSignatures` to build another bundle from a signed candidate at a new output path. The script verifies the payload and signature hashes before assembly. The hashes detect accidental changes and provide no proof of the signer's identity. The `signed=true` field records that the signing profile completed. The Central Portal runs its own checks. Local validation also verified the signatures cryptographically with a disposable key.
 
-O starter não expõe classes de API, mas fornece um `-javadoc.jar` com HTML explicando as dependências e apontando para a documentação do núcleo/autoconfiguração. Esse arquivo atende ao formato exigido para artefatos de packaging JAR. Confira os [requisitos do Central](https://central.sonatype.org/publish/requirements/) e o [layout para upload de bundles](https://central.sonatype.org/publish/publish-portal-upload/).
+The starter does not expose classes of API, but provides a `-javadoc.jar` with HTML explaining the dependencies and pointing to the documentation of the core/auto-configuration. This file meets the format required for packaging artifacts JAR. Check the [Central requirements](https://central.sonatype.org/publish/requirements/) and [layout for uploading bundles](https://central.sonatype.org/publish/publish-portal-upload/).
 
-## Smoke test — exemplo 8.2.1
+## Smoke test — example 8.2.1
 
 ```powershell
-# Após instalar/preparar a versão candidata:
+# After installing/preparing the candidate version:
 .\scripts\smoke-release.ps1 -Version 0.1.0-rc.1
 ```
 
-O consumidor fora do reactor compila com a versão selecionada e verifica, em tempo de execução, `pom.properties` dos JARs core/autoconfigure/starter. Versões divergentes falham antes de iniciar o fluxo de negócio. O processo inicia o contexto Spring, faz um health PING pelo pool e executa cadastro/leitura, paginação IDX, projeção FT, UNIQUE e controle de versão, com dados próprios e limpeza por IDs conhecidos.
+The consumer outside the reactor compiles with the selected version and checks, in runtime, `pom.properties` of the JARs core/autoconfigure/starter. Divergent versions fail before starting the business flow. The process starts the Spring context, does a health PING by the pool and performs registration/reading, pagination IDX, FT projection, UNIQUE and version control, with own data and cleaning by known IDs.
 
-Saída esperada: `CONSUMER_VERSION 0.1.0-rc.1`, `CONSUMER_HEALTH_OK ping=PONG`, `CONSUMER_OK ...` e `RELEASE_SMOKE_OK ...`. Esse health é uma verificação CLI; não há endpoint HTTP/Actuator no consumidor. A senha de schema é removida antes do processo da aplicação. Credenciais de assinatura e tokens Central também são retirados do ambiente dos processos de validação do consumidor e restaurados ao terminar.
+Expected exit: `CONSUMER_VERSION 0.1.0-rc.1`, `CONSUMER_HEALTH_OK ping=PONG`, `CONSUMER_OK ...` and `RELEASE_SMOKE_OK ...`. This health is a verification CLI. There is no endpoint HTTP/Actuator in the consumer. The schema password is removed before the application process. Signature credentials and Central tokens are also removed from the environment from the consumer validation processes and restored at completion.
 
-## Workflow de candidato e segredos
+## Candidate workflow and secrets
 
-`.github/workflows/release-candidate.yml` só é acionado manualmente em main. Executa a CI completa, prepara a versão informada e entrega o bundle para revisão. `sign=false` é o padrão. Para `sign=true`, configure o environment **release-preparation** com revisores obrigatórios e acesso restrito a main antes do primeiro uso. Essa configuração de conta/repositório não é criada pelos arquivos YAML e ainda deve ser feita pelo mantenedor.
+`.github/workflows/release-candidate.yml` runs only when manually dispatched on main. It runs the full CI suite, prepares the requested version, and produces the bundle for review. `sign=false` is the default. For `sign=true`, configure the **release-preparation** environment with required reviewers and restrict access to main before first use. The maintainer sets up the environment in the repository settings.
 
-Use os secrets `MAVEN_GPG_KEY` (chave privada OpenPGP exportada) e `MAVEN_GPG_PASSPHRASE` nesse environment. O perfil `release-sign` usa Maven GPG Plugin 3.2.8, signer BC e `bestPractices=true`; não depende de um executável GnuPG no runner e não recebe senha por argumento/POM. A chave só é disponibilizada no passo de assinatura. Consulte a [documentação oficial de assinatura](https://maven.apache.org/plugins/maven-gpg-plugin/sign-mojo.html).
+Use the secrets `MAVEN_GPG_KEY` (openPGP private key exported) and `MAVEN_GPG_PASSPHRASE` in that environment. Profile `release-sign` uses Maven GPG Plugin 3.2.8, sign BC and `bestPractices=true`. Does not depend on a GnuPG executable on the runner and does not receive password by argument/POM. The key is only available at the signature step. See [Official signature documentation](https://maven.apache.org/plugins/maven-gpg-plugin/sign-mojo.html).
 
-Não commite chaves, senha, settings locais nem tokens. O template `config/maven-settings.xml.example` usa referências a `CENTRAL_TOKEN_USERNAME` e `CENTRAL_TOKEN_PASSWORD`, para ferramentas Maven que precisem do token do Portal. Ele não contém credenciais e não é lido pelos scripts atuais: o fluxo atual usa upload manual do ZIP pelo Portal. Nunca use o token do GitHub como credencial Central. Orientação oficial: [token de publicação](https://central.sonatype.org/publish/generate-portal-token/).
+Never commit keys, passphrases, local settings, or tokens. The `config/maven-settings.xml.example` template references `CENTRAL_TOKEN_USERNAME` and `CENTRAL_TOKEN_PASSWORD` for Maven tools that require a Portal token. It contains no credentials. The current scripts do not read it because publication uses a manual ZIP upload in the Portal. Use a Central Portal token for Central authentication. [Publication token documentation](https://central.sonatype.org/publish/generate-portal-token/).
 
-## Checklist de release
+## Release checklist
 
-### Antes de aprovar
+### Before approval
 
-- [ ] Verificar o namespace **com.anlohse** na conta/organização do Central Portal usando o domínio anlohse.com. O groupId do projeto é **com.anlohse.datadam**; a posse do domínio ainda precisa ser verificada no Portal.
-- [ ] Configurar os revisores do environment e a chave real de assinatura; publicar a chave pública no keyserver aceito pelo Central. A chave descartável desta validação não serve para releases.
-- [ ] Commitar/revisar a entrega, com mensagens/PR em inglês; confirmar checkout limpo e CI aprovada para o commit exato.
-- [ ] Escolher versão ainda não publicada; revisar `CHANGELOG.md`, política de compatibilidade e guia de atualização.
-- [ ] Preparar novamente com `-Sign`; conferir nove JARs/quatro POMs, 13 assinaturas, checksums e smoke test da versão.
-- [ ] Conferir `sourceCommit`, `dirtySource=false`, versão, tag SCM e SHA-256 do ZIP. Criar a tag revisada `v<versão>` apontando para esse commit, conforme o processo aprovado pelo mantenedor.
-- [ ] Obter autorização explícita para o conjunto **versão + commit/tag + hash do bundle + Maven Central**.
+- [ ] Check the namespace **com.anlohse** in the Central Portal account/organization using the anlohse.com domain. The project groupId is **com.anlohse.datadam**. Ownership of the domain still needs to be verified on the Portal.
+- [ ] Configure the environment reviewers and the actual signature key. Publish the public key in the keyserver accepted by the Central. The disposable key of this validation is not for release.
+- [ ] Commit/review delivery, with messages/PR in English. Confirm clean checkout and IC approved for exact commit.
+- [ ] Choose unpublished version. Review `CHANGELOG.md`, compatibility policy and update guide.
+- [ ] Prepare again with `-Sign`. Check nine JARs/four POMs, 13 signatures, checksums and smoke test version.
+- [ ] Verify `sourceCommit`, `dirtySource=false`, the version, the SCM tag, and the ZIP's SHA-256 hash. Create the reviewed tag `v<version>` pointing to this commit according to the maintainer's approved process.
+- [ ] Obtain explicit authorisation for the whole **version + commit/tag + bundle hash + Maven Central**.
 
-### Publicação — separada e ainda pendente
+### Publication — separate and pending
 
-- [ ] Somente após autorização, entrar no [Central Portal](https://central.sonatype.com) e enviar o ZIP assinado revisado. Upload já envia os artefatos a um serviço externo; não é executado pelos runners deste projeto.
-- [ ] Conferir as validações do Portal. Estar em VALIDATED não equivale a estar publicado; revisar antes da ação Publish.
-- [ ] Publicar explicitamente no Portal; aguardar confirmação e conferir as quatro coordenadas e todos os classificadores.
-- [ ] Executar o consumidor resolvendo a versão do Central em um Maven local limpo, registrar links/resultado e atualizar changelog/checklist.
+- [ ] Only after authorization, enter the [Central Portal](https://central.sonatype.com) and send the revised signed ZIP. Upload already sends the artifacts to an external service. It is not executed by the runners of this project.
+- [ ] Checking the validations of the Portal. Being in VALIDATED does not amount to being published. Review before the Publish action.
+- [ ] Publish explicitly in the Portal, wait for confirmation, and verify all four Maven coordinates and their classifiers.
+- [ ] Run the standalone consumer with a clean local Maven repository so it resolves the version from Central. Record the links and results and update the changelog and checklist.
 
-Publicações são imutáveis: não se deve corrigir uma versão já publicada sobrescrevendo seus arquivos. A reprodução de consumo depois do upload e a aprovação do Portal não foram realizadas nesta entrega. Os arquivos de workflow ainda precisam ser commitados/enviados para que possam executar no GitHub; a validação registrada aqui é a reprodução local do runner e a análise estática dos YAMLs.
+Publications are immutable: you should not fix a version already published overwriting your files. The usage playback after uploading and the Portal approval were not performed in this delivery. Workflow files still need to be committed/sent so they can run on GitHub. The validation recorded here is the local playback of the runner and the static analysis of the YAMLs.
 
-## Atualizar aplicações
+## Upgrade applications
 
-Troque a dependência Boot antiga por `com.anlohse.datadam:datadam-spring-boot-starter` e mantenha a mesma versão nos três artefatos. Não misture o núcleo do SNAPSHOT anterior com a nova autoconfiguração. Para atualização local, instale os artefatos antes de construir o consumidor; para versão publicada, remova resíduos da versão candidata do cache de validação e confirme sua origem no Central.
+Change the old Boot dependency for `com.anlohse.datadam:datadam-spring-boot-starter` and keep the same version in the three artifacts. Do not mix the core of SNAPSHOT above with the new auto-configuration. For local upgrade, install the artifacts before building the consumer. For published version, remove waste from the candidate version of the validation cache and confirm its origin in the Central.
 
-Leia o [changelog](../CHANGELOG.md), a [política da API](public-api-and-compatibility.md) e os limites de transporte, TLS, TTL e scripts antes de atualizar. Não há mudança C++ nesta etapa; a revisão nativa exigida continua fixada no contrato de imagens. Uma versão candidata local não muda a versão SNAPSHOT do desenvolvimento nem constitui uma release anunciada.
+Read [changelog](../CHANGELOG.md), [policy of API](public-api-and-compatibility.md) and transport limits, TLS, TTL and scripts before updating. There is no C++ change at this stage. The required native revision remains fixed in the image contract. A local candidate version does not change the SNAPSHOT version of the development nor constitutes an announced release.
 
-## Evidência desta entrega
+## Validation evidence
 
-Em 08/11/2026, o runner foi reproduzido no Windows em uma cópia isolada: 395 testes aprovados e 564 reexecuções unitárias na matriz Docker. Os YAMLs passaram no actionlint e os scripts no parser PowerShell. O candidato local 0.1.0-rc.1 teve 13 assinaturas verificadas criptograficamente com chave descartável (apagada após o teste); o ZIP contém 13 payloads, 13 assinaturas e 52 checksums. As recusas de versão divergente, hash alterado, assinatura ausente e SNAPSHOT passaram. [Evidência e hashes](validation/2026-11-08-ci-release.json).
+In November 8, 2026, the runner was played on Windows in an isolated copy: 395 approved tests and 564 unit reruns in the Docker matrix. The YAMLs passed in the actionlint and the scripts in the PowerShell parser. The local candidate 0.1.0-rc.1 had 13 cryptographically verified signatures with disposable key (delete after the test). The ZIP contains 13 payloads, 13 signatures and 52 checksums. The refusals of divergent version, altered hash, absent signature and SNAPSHOT passed. [Evidence and hashes](validation/2026-11-08-ci-release.json).
 
-Esse bundle tem alterações ainda não commitadas e foi assinado com chave de teste, portanto não deve ser publicado. Nenhum upload ao Central, verificação externa de namespace, execução hospedada do workflow ou publicação foi realizado. A etapa pendente está explicitamente aberta no roadmap.
+This bundle has changes not yet committed and was signed with test key, so it should not be published. No upload to the Central, external namespace verification, host execution of the workflow or publication was performed. The pending stage is explicitly open on the roadmap.

@@ -1,102 +1,102 @@
-# Compatibilidade e desempenho — entrega 7.3
+# Compatibility and performance — 7.3
 
-Esta entrega define o conjunto efetivamente validado, fixa os insumos de imagem dos testes e publica uma medição reproduzível. Não altera a semântica de consultas ou promete desempenho constante.
+This delivery defines the effectively validated set, fixes the image inputs of the tests and publishes a reproducible measurement. It does not alter the semantics of queries or promises constant performance.
 
-## Matriz suportada
+## Supported matrix
 
-O contrato atual é Spring Boot **3.5.16**, Spring Data Commons **3.5.13**, Jedis **6.0.0**, Jackson Databind **2.21.4** e Micrometer **1.15.12**, com as versões gerenciadas pelo POM do projeto. Não substituímos Spring Data Redis: os repositórios usam Commons e o protocolo Datadam diretamente.
+The current contract is Spring Boot **3.5.16**, Spring Data Commons **3.5.13**, Jedis **6.0.0**, Jackson Databind **2.21.4** and Micrometer **1.15.12**, with the versions managed by POM of the project. We do not replace Spring Data Redis: the repositories use Commons and the Datadam protocol directly.
 
-| Runtime validado | Plataforma | Unidade | Consumidor Spring Boot + Datadam |
+| Validated runtime | Platform | Unit | Consumer Spring Boot + Datadam |
 |---|---|---|---|
-| Temurin 17.0.21 | Linux x86_64 em Docker | 188 aprovados | Aprovado |
-| Temurin 21.0.13 | Linux x86_64 em Docker | 188 aprovados | Aprovado |
-| Temurin 25.0.5 | Linux x86_64 em Docker | 188 aprovados | Aprovado |
-| OpenJDK 25.0.2 | Windows 11 x64 | 188 aprovados | Suíte completa de integração aprovada |
+| Temurin 17.0.21 | Linux x86_64 in Docker | 188 approved | Approved |
+| Temurin 21.0.13 | Linux x86_64 in Docker | 188 approved | Approved |
+| Temurin 25.0.5 | Linux x86_64 in Docker | 188 approved | Approved |
+| OpenJDK 25.0.2 | Windows 11 x64 | 188 approved | Approved full integration suite |
 
-O build registrado usa Maven 3.8.4, JDK 25.0.2 e `--release 17`. As outras JVMs executam os mesmos artefatos compilados; não são três recompilações com compiladores diferentes. A matriz não declara suporte validado a Boot 4, outras versões de dependências, Java intermediário, Java 26+, ARM ou servidor nativo Windows. A faixa permitida pelo próprio Boot é mais ampla que os pontos efetivamente testados pela biblioteca.
+The recorded build uses Maven 3.8.4, JDK 25.0.2, and `--release 17`. Each JVM runs the same compiled artifacts, with one compilation for the entire matrix. The validated set excludes Boot 4, other dependency versions, intermediate Java releases, Java 26+, ARM, and a native Windows server. Boot itself supports a wider range than this library has tested.
 
-`CompatibilityMatrixIT` copia somente classpaths compilados/dependências para clientes isolados. Em cada imagem JDK executa a suíte inteira da biblioteca pelo JUnit Console e depois inicia um consumidor Boot. O consumidor valida IDs, versão, CRUD JSON/HASH, UNIQUE, IDX derivado com Page, projeções FT, atualização/exclusão versionadas, recusa de escrita obsoleta, TTL, health e métricas. O servidor é novo em cada linha da matriz.
+`CompatibilityMatrixIT` copy only compiled classpaths/dependencies for isolated clients. In each image JDK executes the entire library suite by JUnit Console and then starts a Boot consumer. The consumer validates IDs, version, CRUD JSON/HASH, UNIQUE, IDX derived with Page, FT projections, versioned update/exclusion, obsolete write refusal, TTL, health and metrics. The server is new in each line of the matrix.
 
-As três linhas são três casos da suíte Maven, mas executam adicionalmente **564 testes unitários dentro dos contêineres**. Desde 8.1, o classpath reúne testes do núcleo e da autoconfiguração; são 140 + 48 casos. A verificação de ausência de Boot/telemetria é feita no classpath Maven isolado do núcleo, e a mesma configuração manual é reexecutada no classpath combinado da matriz. Essas execuções repetidas não são somadas ao número de testes únicos do projeto. Os testes TLS da entrega 7.2 continuam sendo um conjunto separado e usam a JVM JRE fixada no contrato de imagens.
+The three lines are three cases of the Maven suite, but they perform additionally **564 unit tests inside containers**. Since 8.1, the classpath gathers core and auto-configuration tests. They are 140 + 48 cases. The verification of Boot/telemetry absence is done in the Maven classpath isolated from the core, and the same manual configuration is re-executed in the matrix's combined classpath. These repeated executions are not added to the number of unique tests of the project. The TLS tests of delivery 7.2 continue to be a separate set and use the JVM JRE fixed in the image contract.
 
-Evidência histórica de 7.3: [compatibilidade em JSON](validation/2026-11-07-compatibility.json). A validação de 8.1 está em [artefatos e consumo independente](validation/2026-11-08-consumption.json). Os logs completos e relatórios JUnit ficam em `datadam-demo/target/compatibility/java17`, `java21` e `java25`.
+Historical evidence of 7.3: [compatibility in JSON](validation/2026-11-07-compatibility.json). Validation of 8.1 is in [artifacts and independent consumption](validation/2026-11-08-consumption.json). The complete logs and reports JUnit are in `datadam-demo/target/compatibility/java17`, `java21` and `java25`.
 
-## Identidade do Datadam e imagens
+## Datadam revision and images
 
-Os testes atuais usam a imagem oficial **Datadam 0.2.0**, que contém HREPLACE e RETURNJSON. As medições de desempenho abaixo são históricas e usaram o commit de desenvolvimento `e2e2c0ae4e9282dd4b1d815e9d893931bd41bd3e`. [Release Datadam 0.2.0](https://github.com/anlohse/datadam/releases/tag/v0.2.0).
+Current tests use the official image **Datadam 0.2.0**, which contains HREPLACE and RETURNJSON. The performance measurements below are historical and used the development commit `e2e2c0ae4e9282dd4b1d815e9d893931bd41bd3e`. [Release Datadam 0.2.0](https://github.com/anlohse/datadam/releases/tag/v0.2.0).
 
-[config/test-images.properties](../config/test-images.properties) é o contrato compartilhado entre scripts e testes. Ele fixa:
+[config/test-images.properties](../config/test-images.properties) is the contract shared between scripts and tests. It fixes:
 
-- Digest da imagem publicada em GHCR e revisão C++ completa.
-- Digests das imagens JDK 17/21/25 e da JRE usada no TLS.
+- Digest of the image published in GHCR and complete C++ revision.
+- Digests of images JDK 17/21/25 and JRE used in TLS.
 
-O runner reutiliza a imagem local quando disponível e faz `docker pull` por digest em uma máquina nova. Antes de iniciar servidores descartáveis, os scripts e `TestImages` conferem a revisão no rótulo OCI e resolvem a referência para o ID local. A opção `DATADAM_IMAGE` permite selecionar outra imagem da mesma revisão. O Compose usa o digest da mesma release.
+The runner re-uses the local image when available and makes `docker pull` per digest on a new machine. Before starting disposable servers, the scripts and `TestImages` verify the OCI revision label and resolve the reference to the local ID. The `DATADAM_IMAGE` option allows you to select another image from the same revision. The Compose uses the digest from the same release.
 
 ```powershell
 ./scripts/run-local.ps1 -Restart -IntegrationTests -Background
 ```
 
-Para reconstruir a versão de teste a partir do C++, use `-BuildDatadam` e aponte `DATADAM_SOURCE` para um clone com a revisão fixada. O script arquiva somente esse commit e grava uma tag local. Execute a matriz novamente ao atualizar o contrato de imagens. Para rodar apenas o servidor, use `docker compose up -d --no-build`.
+To rebuild the test version from C++, use `-BuildDatadam` and point `DATADAM_SOURCE` to a clone with the revision fixed. The script only files this commit and saves a local tag. Run the matrix again when updating the image contract. To run only the server, use `docker compose up -d --no-build`.
 
-## Medição registrada
+## Recorded measurements
 
-Artefatos de 07/11/2026, horário America/Sao_Paulo:
+Artifacts of November 7, 2026, time America/Sao_Paulo:
 
-- [CSV completo: 104 combinações](performance/2026-11-07-results.csv).
-- [Ambiente, parâmetros, revisão e ID da imagem](performance/2026-11-07-environment.json). O timestamp no JSON está em UTC, já em 08/11.
+- [CSV complete: 104 combinations](performance/2026-11-07-results.csv).
+- [Environment, parameters, revision and image ID](performance/2026-11-07-environment.json). The timestamp in JSON is in UTC, already in 08/11.
 
-Cliente: Windows 11, OpenJDK 25.0.2, Intel Core i7-14700HX, 28 processadores lógicos disponíveis. Docker Engine 29.9.2, Linux x86_64, VM com cerca de 7,6 GiB. Cada servidor de benchmark foi limitado a **2 CPUs e 1 GiB**, com dois read-threads. Concorrência do cliente: **1**. O host não é dedicado; os números incluem SO, virtualização e transporte loopback.
+The client ran on Windows 11 with OpenJDK 25.0.2 and an Intel Core i7-14700HX with 28 logical processors available. Docker Engine 29.9.2 ran Linux x86_64 in a VM with about 7.6 GiB of memory. Each benchmark server was limited to **2 CPUs and 1 GiB**, with two read threads. Client concurrency was **1**. The host was shared, and the measurements include OS, virtualization, and loopback transport overhead.
 
-Foram carregados **1.000 e 10.000 documentos por formato** (JSON e HASH), dez cidades/grupos e payload String com 256 caracteres. Cada formato tem IDX composto `(city, age)`, IDX UNIQUE por email e FT TAG/NUMERIC. As atualizações mantêm esses três índices; não há cenário de gravação sem índices para atribuir isoladamente o custo de UNIQUE.
+They were loaded **1,000 and 10,000 documents by format** (JSON and HASH), ten cities/groups and payload String with 256 characters. Each format has IDX compound `(city, age)`, IDX UNIQUE by email and FT TAG/NUMERIC. Updates maintain these three indexes. There is no recording scenario without indexes to attribute the cost of UNIQUE in isolation.
 
-O filtro seleciona 10% dos documentos: 100 ou 1.000 resultados. A página tem 20 registros. O offset profundo é 80 ou 980. Há dez aquecimentos por cenário e cinquenta amostras, exceto lista sem limite (dez) e contagem global (cinco). Cada cenário roda com validate-connection false e true. Criação de schema e carga inicial estão fora das amostras; o tempo de carga é registrado no JSON.
+The filter selects 10% of the documents: 100 or 1,000 results. The page has 20 records. The deep offset is 80 or 980. There are ten warm-ups per scenario and fifty samples, except limitless list (ten) and global count (five). Each scenario rotates with false and true validation-connection. Schematic creation and initial load are out of the samples. The loading time is recorded in JSON.
 
-Resultados selecionados para **10.000 documentos por formato**, com validação de conexão **ativada**, em milissegundos:
+Selected results for **10,000 documents by format**, with connection validation **activated**, in milliseconds:
 
-| Operação | JSON mediana / p95 | HASH mediana / p95 | Comandos por chamada |
+| Operation | JSON median / p95 | HASH median / p95 | Commands by call |
 |---|---|---|---|
-| IDX somente conteúdo, primeira página | 0,849 / 0,911 | 1,079 / 1,199 | 1 |
-| IDX Page, primeira página | 1,756 / 2,175 | 1,856 / 2,062 | 2 |
-| IDX Page, offset 980 | 6,063 / 6,704 | 4,286 / 4,654 | 2 |
-| IDX COUNT do filtro, 1.000 resultados | 0,854 / 0,950 | 0,717 / 0,823 | 1 |
-| FT Page, primeira página | 2,497 / 2,825 | 2,847 / 3,032 | 1 |
-| FT Page, offset 980 | 4,012 / 4,330 | 4,381 / 4,755 | 1 |
-| Substituição completa com índices | 0,674 / 0,830 | 0,770 / 0,889 | 1 |
-| count() global, 10.000 chaves | 30,523 / 31,227 | 28,978 / 29,416 | 40 |
+| IDX content only, first page | 0.849 / 0.911 | 1.079 / 1.199 | 1 |
+| IDX Page, first page | 1.756 / 2.175 | 1.856 / 2.062 | 2 |
+| IDX Page, offset 980 | 6.063 / 6.704 | 4.286 / 4.654 | 2 |
+| IDX COUNT filter, 1,000 results | 0.854 / 0.950 | 0.717 / 0.823 | 1 |
+| FT Page, first page | 2.497 / 2.825 | 2.847 / 3.032 | 1 |
+| FT Page, offset 980 | 4.012 / 4.330 | 4.381 / 4.755 | 1 |
+| Complete replacement with indexes | 0.674 / 0.830 | 0.770 / 0.889 | 1 |
+| global count(s), 10,000 keys | 30.523 / 31.227 | 28.978 / 29.416 | 40 |
 
-O CSV contém também lookup UNIQUE, projeções IDX/FT, listas sem limite e incrementos nativos JSON.NUMINCRBY/HINCRBY. O incremento HASH é um comando de baixo nível via DatadamCommands, não uma nova API de entidade HASH. `commands_per_operation` conta chamadas do transporte da biblioteca e **não** os PINGs internos de validação do pool.
+The CSV also contains lookup UNIQUE, projections IDX/FT, limitless lists and native increments JSON.NUMINCRBY/HINCRBY. The increase HASH is a low-level command via DatadamCommands, not a new API entity HASH. `commands_per_operation` counts library transport calls and **no** internal pool validation PINGs.
 
-Esses números são uma referência local, não SLO, capacidade concorrente, teste de carga ou comparação com Redis/outro banco. `serial_operations_per_second` é o inverso da média observada, não throughput máximo. Não há threshold de aprovação por latência. Cinquenta amostras e uma sequência fixa de cenários não isolam efeitos de JIT/cache nem substituem um benchmark estatístico em ambiente de produção.
+These numbers are a local reference, not SLO, concurrent capacity, load test or comparison with Redis/another bank. `serial_operations_per_second` is the inverse of the observed mean, not throughput maximum. There is no threshold of latency approval. Fifty samples and a fixed sequence of scenarios do not isolate effects of JIT/cache nor replace a statistical benchmark in the production environment.
 
-Nesta medição, Page IDX custa mais que conteúdo sem COUNT, e páginas profundas custam mais que as primeiras. A validação PING acrescenta custo por empréstimo. Projeções reduzem os campos devolvidos, mas não foram universalmente mais rápidas neste payload pequeno; por exemplo, a mediana JSON IDX projetada sem validação foi 1,226 ms contra 1,101 ms para Page completo. Não concluímos que projeção ou atualização parcial sempre terá menor latência.
+In this benchmark, an IDX Page cost more than fetching the same content without COUNT, and deep pages cost more than first pages. Connection validation adds a PING each time the client borrows a connection. Projections return fewer fields. For these small payloads, the median JSON IDX projection without connection validation took 1.226 ms, compared with 1.101 ms for a full Page. The measurements do not establish a general latency advantage for projections or partial updates.
 
-## Custos e limites que a API preserva
+## API costs and limits
 
-| Recurso | Trabalho envolvido |
+| Appeal | Work involved |
 |---|---|
-| Page IDX | QUERY e COUNT separados; a API programática conta antes de consultar, a derivação consulta antes de contar. Ambos podem observar momentos diferentes sob concorrência. |
-| IDX.COUNT | Percorre o intervalo/candidatos do índice que satisfazem os filtros e ACL; não é contador global O(1). A leitura de documentos depende dos filtros/validação necessários. |
-| IDX com OFFSET | Precisa descartar os matches anteriores ao offset; o custo não é constante para páginas profundas. |
-| FT Page | Um comando devolve total e conteúdo. O servidor avalia candidatos e aplica ACL antes do total; com ordenação, percorre entradas ordenadas para obter offset+limit. Uma chamada não significa custo O(1). |
-| List IDX/derivação sem limite | Pode materializar todos os resultados no servidor/cliente. Menos comandos não limita bytes, heap ou tempo de resposta. |
-| Projeções | Selecionam campos nativamente e evitam leitura adicional por documento; ainda há filtro, total quando pedido, serialização e materialização do DTO. |
-| Validate-connection | Um PING por empréstimo: dois comandos de Page IDX normalmente implicam dois PINGs adicionais. Não é uma repetição de escrita. |
-| count() sem argumentos | SCAN por prefixo e tipo, COUNT 256 como indicação, até cursor zero; acumula chaves para contar. Não usa IDX.COUNT nem DBSIZE. |
-| findAll() | O mesmo SCAN, seguido de leitura individual JSON.GET/HGETALL; custo e memória crescem com as chaves retornadas. |
-| deleteAll() | Enumeração seguida de exclusões sequenciais, com leituras/scripts adicionais em entidades versionadas ou com callbacks; pode haver êxito parcial. |
+| Page IDX | QUERY and COUNT separately. The programmatic API counts before consulting, the derivation consults before counting. Both can observe different moments under competition. |
+| IDX.COUNT | It runs through the range/candidates of the index that satisfy the filters and ACL. It is not global counter O(1). Reading documents depends on the necessary filters/validation. |
+| IDX with OFFSET | You need to rule out previous offset matches. The cost is not constant for deep pages. |
+| FT Page | A command returns total and content. The server evaluates candidates and applies ACL before the total. With sorting, it runs ordered entries to get offset+limit. A call does not mean O(1) cost. |
+| List IDX / limitless derivation | You can materialize all results on the server/client. Less commands do not limit bytes, heap or response time. |
+| Projections | They select native fields and avoid additional reading per document. There is still filter, total when requested, serialization and materialization of DTO. |
+| Validate-connection | One PING per loan: two Page commands IDX usually involve two additional PINGs. It is not a repetition of writing. |
+| count() without arguments | SCAN by prefix and type, COUNT 256 as an indication, up to zero cursor. Accumulate keys to count. Do not use IDX.COUNT or DBSIZE. |
+| findAll() | The same SCAN, followed by individual reading JSON.GET/HGETALL. Cost and memory grow with the returned keys. |
+| deleteAll() | Enumeration followed by sequential deletions, with additional readings/scripts in versioned entities or with callbacks. There may be partial success. |
 
-O SCAN do Datadam aproveita o prefixo literal para delimitar o cursor de metadados; não afirmamos que todo SCAN percorre o banco inteiro. Ainda depende das chaves visitadas no prefixo, filtros de tipo, expiração e ACL, sem snapshot global entre chamadas. No conjunto medido, count() global visitou 10.000 chaves do formato em quarenta chamadas; IDX.COUNT do exemplo seleciona somente 1.000 matches, portanto as duas contagens da tabela não têm a mesma seletividade.
+Datadam SCAN uses the literal prefix to delimit the metadata cursor. We do not claim that all SCAN runs the entire bank. It still depends on the keys visited in the prefix, type filters, expiration and ACL, without global snapshot between calls. In the measured set, global count() visited 10,000 format keys in forty calls; IDX.COUNT of the example selects only 1,000 matches, so the two counts in the table do not have the same selectivity.
 
-## Reproduzir o workload
+## Reproduce the workload
 
-Primeiro instale/valide o reactor com o script local. Depois:
+First install/validate the reactor with the local script. Then:
 
 ```powershell
 ./scripts/run-performance.ps1 -Documents '1000,10000' -Samples 50 -Warmups 10
 ```
 
-O workload cria seus próprios servidores/volumes e não usa os dados da aplicação. A classe termina em Benchmark e fica fora da suíte normal `*IT`; o perfil performance separa seus relatórios. O script chama test-compile e Failsafe diretamente, evitando reempacotar um JAR que esteja em uso no Windows.
+The workload creates its own servers/volumes and does not use the application data. The class ends in Benchmark and stays out of the normal suite `*IT`. The performance profile separates its reports. The script calls test-compile and Failsafe directly, avoiding repackaging a JAR that is in use on Windows.
 
-Saídas: `datadam-demo/target/performance/results.csv`, `environment.json` e `failsafe-reports`. Para registrar outra linha de base, preserve parâmetros/imagens/ambiente e publique os arquivos brutos junto da interpretação. A medição publicada acima é um snapshot, não é sobrescrita automaticamente por execuções posteriores.
+Outputs: `datadam-demo/target/performance/results.csv`, `environment.json` and `failsafe-reports`. To record another baseline, preserve parameters/images/environment and publish the raw files next to the interpretation. The measurement published above is a snapshot, is not automatically overwritten by subsequent executions.
 
-Referências: [requisitos do Spring Boot 3.5](https://docs.spring.io/spring-boot/3.5/system-requirements.html), [imagens oficiais Temurin](https://github.com/docker-library/docs/tree/master/eclipse-temurin), código `DatadamTemplate`/`SimpleDatadamRepository` e implementação `src/db/index_ops.cpp`, `search_ops.cpp` e `database.cpp` da revisão Datadam fixada.
+References: [Spring Boot requirements 3.5](https://docs.spring.io/spring-boot/3.5/system-requirements.html), [official images Temurin](https://github.com/docker-library/docs/tree/master/eclipse-temurin), code `DatadamTemplate`/`SimpleDatadamRepository` and implementation `src/db/index_ops.cpp`, `search_ops.cpp` and `database.cpp` of the fixed Datadam revision.

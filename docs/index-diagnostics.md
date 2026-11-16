@@ -1,27 +1,27 @@
-# Inspeção e diagnóstico de índices
+# Index inspection and diagnostics
 
-O item 6.1 oferece inspeção de schema e backfill e explica a escolha de índices nas consultas derivadas. Essas APIs não criam, removem ou migram índices. `ensureIndexes`, que já existia, continua sendo a operação explícita de criação/validação.
+The item 6.1 offers schema and backfill inspection and explains the choice of indexes in the derived queries. These APIs do not create, remove or migrate indexes. `ensureIndexes`, which already existed, is still the explicit creation/validation operation.
 
-## Listar e acompanhar backfill
+## List indexes and track backfills
 
 ```java
 var indexes = new DatadamIndexOperations(commands);
 List<String> names = indexes.listIndexes();
 IndexStatus status = indexes.status("customers:city-age");
-System.out.println(status.state());       // BUILDING, READY ou FAILED
-System.out.println(status.keysScanned()); // chaves visitadas, não porcentagem
-System.out.println(status.error());       // motivo informado pelo servidor em FAILED
+System.out.println(status.state());       // BUILDING, READY or FAILED
+System.out.println(status.keysScanned()); // keys visited, not percentage
+System.out.println(status.error());       // reason reported by the server in FAILED
 
 indexes.awaitReady("customers:city-age", Duration.ofSeconds(30));
 ```
 
-`listIndexes()` executa `IDX.LIST`, que lista tanto IDX quanto FT. `status()` faz somente `IDX.INFO`. `awaitReady` consulta esse mesmo status em intervalos de 25 ms, respeita interrupção e exige timeout positivo. Falha de backfill produz `DataIntegrityViolationException` com a causa do servidor; timeout produz `QueryTimeoutException` com o último contador de chaves visitadas. Um índice ausente não é tratado como “ainda construindo”.
+`listIndexes()` executes `IDX.LIST`, which lists both IDX and FT. `status()` does only `IDX.INFO`. `awaitReady` consults this same status at intervals of 25 ms, respects interruption and requires positive timeout. Backfill failure produces `DataIntegrityViolationException` with the cause of the server. Timeout produces `QueryTimeoutException` with the last key counter visited. A missing index is not treated as still building.
 
-Não há porcentagem real nem tempo estimado de conclusão. A contagem de chaves visitadas não informa quantas faltam. Um backfill interrompido por reinício pode recomeçar; não suponha que o contador seja monotônico entre reinícios.
+There is no real percentage or estimated completion time. The count of visited keys does not report how many are missing. A backfill interrupted by restart may restart. Do not suppose that the counter is monotonous between restarts.
 
-Durante construção, IDX recusa consultas; FT pode responder com o subconjunto já indexado. Para exigir completude, aguarde READY antes de usar o índice. Um índice UNIQUE que falhou não será reconstruído nem terá suas duplicatas removidas por estas APIs.
+During construction, IDX refuses queries; FT can respond with the already indexed subset. To demand completeness, wait READY before using the index. An index UNIQUE that failed will not be reconstructed nor will its duplicates be removed by these APIs.
 
-## Inspeção completa
+## Full inspection
 
 ```java
 IndexInfo info = indexes.inspect("customers:search");
@@ -30,13 +30,13 @@ info.fields().forEach(field -> System.out.println(
     + ", separator=" + field.separator() + ", caseSensitive=" + field.caseSensitive()));
 ```
 
-`IndexInfo` contém status, formato JSON/HASH, prefixos, UNIQUE e campos em ordem. Cada campo tem caminho, alias, tipo TAG/NUMERIC, separador efetivo e sensibilidade a caixa. IDX TAG é sempre sensível a caixa; FT usa os atributos retornados pelo servidor, inclusive o separador padrão `,` no HASH.
+`IndexInfo` contains status, format JSON/HASH, prefixes, UNIQUE and fields in order. Each field has path, alias, type TAG/NUMERIC, effective separator and box sensitivity. IDX TAG is always sensitive to the box; FT uses the attributes returned by the server, including the standard separator `,` in HASH.
 
-Para IDX, a inspeção usa somente `IDX.INFO`. Para FT, usa também `FT.INFO`, necessário para CASESENSITIVE e estatísticas de documentos/entradas. **FT.INFO percorre o índice para contar entradas**: prefira `status()` para polling frequente. `searchStatistics` é null em IDX. Não expomos `percent_indexed` como progresso real, pois o servidor atualmente informa somente 0 ou 1.
+For IDX, the inspection uses only `IDX.INFO`. For FT, it also uses `FT.INFO`, necessary for CASESENSITIVE and document/entry statistics. **FT.INFO scrolls through the index to count entries**: prefers `status()` to frequent polling. `searchStatistics` is null in IDX. We do not expose `percent_indexed` as real progress, because the server currently reports only 0 or 1.
 
-As respostas são observações de comandos separados, sem snapshot transacional. Se o schema divergir entre IDX.INFO e FT.INFO, a inspeção recusa a resposta com `DataRetrievalFailureException`; repita após concluir a alteração administrativa. Estatísticas e status podem refletir momentos diferentes. As listas devolvidas são imutáveis.
+The responses are observations of separate commands, without transactional snapshots. If the schema diverges between IDX.INFO and FT.INFO, the inspection refuses the response with `DataRetrievalFailureException`. Repeats after completing the administrative change. Statistics and status may reflect different moments. The returned lists are immutable.
 
-## Comparar schema sem DDL
+## Compare schemas without DDL
 
 ```java
 for (IndexSchemaComparison comparison : indexes.compare(Customer.class)) {
@@ -44,11 +44,11 @@ for (IndexSchemaComparison comparison : indexes.compare(Customer.class)) {
         System.out.println(comparison.index() + ": " + comparison.describe());
     }
 }
-// Ou somente um índice declarado na entidade:
+// Or only an index declared in the entity:
 var comparison = indexes.compare(Customer.class, "customers:city-age");
 ```
 
-Cada diferença contém `property`, `expected` e `actual`. Exemplo:
+Each difference contains `property`, `expected` and `actual`. Example:
 
 ```text
 fields.size: expected=2, actual=1;
@@ -56,13 +56,13 @@ fields[0].alias: expected=city, actual=home;
 fields[0].caseSensitive: expected=true, actual=false
 ```
 
-São comparados família IDX/FT, formato JSON/HASH, prefixos, UNIQUE e posição, caminho, alias, tipo, separador e caixa dos campos. A validação de declarações usa as mesmas regras de `ensureIndexes`. O formato é normalizado: um campo HASH sem AS tem caminho igual ao nome; separadores padrão e caixa IDX são comparados pelos seus efeitos reais.
+They are compared family IDX/FT, format JSON/HASH, prefixes, UNIQUE and position, path, alias, type, separator and box of fields. The validation of statements uses the same rules of `ensureIndexes`. The format is normalized: a field HASH without AS has the same path as the name. Standard separators and box IDX are compared by its actual effects.
 
-Índice ausente produz `exists=false`, `actual=null` e diferença `exists`. Erros de conexão, ACL e respostas inválidas propagam suas exceções; não viram “índice ausente”. Um nome não declarado na entidade é recusado antes de I/O.
+Absent index produces `exists=false`, `actual=null` and difference `exists`. Connection errors, ACL and invalid responses propagate their exceptions. They did not see an absent index. An undeclared name in the entity is refused before I/O.
 
-`compatible()` indica somente correspondência de schema. Um índice BUILDING ou FAILED pode ter schema compatível; consulte também `actual().status()` e aguarde READY quando necessário. `ensureIndexes` utiliza o mesmo comparador e inclui as diferenças na exceção, mantendo a exigência de migração explícita.
+`compatible()` indicates only schema correspondence. An index BUILDING or FAILED may have a compatible schema. See also `actual().status()` and wait READY when necessary. `ensureIndexes` uses the same comparator and includes the differences in the exception, while maintaining the requirement for explicit migration.
 
-## Explicar uma consulta derivada
+## Explain a derived query
 
 ```java
 var diagnostics = new DatadamQueryDiagnostics(template);
@@ -70,35 +70,35 @@ var method = CustomerRepository.class.getMethod(
     "findByEmailStartingWithOrderByEmailAsc", String.class, Pageable.class);
 DerivedQueryPlan plan = diagnostics.explain(CustomerRepository.class, method);
 
-System.out.println(plan.index());      // nome do índice declarado escolhido
-System.out.println(plan.kind());       // COMPOUND (IDX) ou SEARCH (FT)
-System.out.println(plan.commands());   // por exemplo [IDX.QUERY, IDX.COUNT]
+System.out.println(plan.index());      // name of the index declared chosen
+System.out.println(plan.kind());       // COMPOUND (IDX) or SEARCH (FT)
+System.out.println(plan.commands());   // for example [IDX.QUERY, IDX.COUNT]
 System.out.println(plan.reason());
 plan.candidates().forEach(System.out::println);
 ```
 
-Spring Boot fornece um bean `DatadamQueryDiagnostics` substituível. Também é possível construir a API manualmente. Para simular a ordem dinâmica de um método com Sort/Pageable, use `explain(repository, method, Sort.by(...))`; a combinação com OrderBy segue as mesmas regras e conflitos da execução. Métodos sem parâmetro dinâmico não aceitam uma ordem dinâmica no diagnóstico.
+Spring Boot provides a replacement bean `DatadamQueryDiagnostics`. It is also possible to build the API manually. To simulate the dynamic order of a method with Sort/Pageable, use `explain(repository, method, Sort.by(...))`. The combination with OrderBy follows the same rules and conflicts of execution. Dynamically non-parameter methods do not accept a dynamic order in the diagnosis.
 
-O relatório usa **o mesmo compilador e a mesma seleção de candidatos da execução**. Inclui a compatibilidade, pontuação e motivo de rejeição de cada índice: campo ausente/tipo incompatível, TAG dividido, caixa incompatível, campo IDX não exigido, OR/IN/negação que exige FT e restrições de ordenação. Entre planos compatíveis, vence a pontuação atual do planejador; empate é resolvido pelo nome do índice. Essa pontuação é uma regra de preferência, não uma estimativa de custo/latência do servidor.
+The report uses **the same compiler and the same selection of execution candidates**. Includes compatibility, score and reason for rejection of each index: absent/uncompatible type field, TAG divided, incompatible box, field IDX not required, OR/IN/negation that requires FT and ordination restrictions. Between compatible plans, the current score of the planner wins. Draw is solved by the index name. This score is a rule of preference, not a cost/latency estimate of the server.
 
-O plano identifica IDX.GET para resultado único por tupla UNIQUE, IDX.COUNT para count/exists, QUERY+COUNT para Page IDX e FT.SEARCH para planos FT. `nativeSort` contém aliases FT; em IDX, a ordem é a tupla do índice e `descending` informa a inversão. O planejamento de uma lista não promete usar IDX.GET só porque o schema é UNIQUE.
+The plan reports IDX.GET for a single result by UNIQUE tuple, IDX.COUNT for count/exists, QUERY+COUNT for an IDX Page, and FT.SEARCH for FT plans. `nativeSort` contains FT aliases. For IDX, the index tuple determines the order and `descending` indicates whether it is reversed. A UNIQUE schema alone does not guarantee that a list query uses IDX.GET.
 
-A explicação não executa comandos nem recebe valores de predicados. Não verifica se o índice existe, está pronto ou se o usuário pode consultá-lo. Também não valida valores dependentes da chamada, como prefixos vazios, null ou caracteres não ASCII em IgnoreCase. Ela considera o mapeamento Jackson do template e as declarações do repositório; use `compare` e `status` para validar o servidor. Métodos anotados, CRUD, default e operadores não suportados são recusados. A ausência de plano compatível também informa os motivos dos candidatos na exceção.
+The explanation does not execute commands or receive predicate values. It does not check whether the index exists, is ready or the user can consult it. It also does not validate call-dependent values, such as empty prefixes, null or characters not ASCII in IgnoreCase. It considers the Jackson mapping of the template and the repository statements. Use `compare` and `status` to validate the server. Annotated methods, CRUD, default and unsupported operators are refused. The lack of a compatible plan also informs the reasons of the candidates in the exception.
 
-## Permissões e exemplo local
+## Permissions and local example
 
-`IDX.LIST`, `IDX.INFO` e `FT.INFO` exigem permissões próprias. São metadados globais, não limitados pelos padrões de chaves de documentos da ACL; estatísticas FT também não representam necessariamente apenas as chaves legíveis pelo usuário. Não exponha essas informações em uma rota pública da aplicação.
+`IDX.LIST`, `IDX.INFO` and `FT.INFO` require permissions of their own. They are global metadata, not limited by ACL document key patterns; FT statistics also do not necessarily represent only the keys readable by the user. Do not expose this information on a public route of the application.
 
-O Docker local inclui `index-observer`, autorizado somente a conexão e esses três comandos; ele não lê documentos nem executa DDL. O usuário `schema` ganhou `IDX.LIST`; as credenciais `app` continuam sem acesso à inspeção. O diagnóstico de consultas é local e não exige nenhum desses privilégios.
+The local Docker includes `index-observer`, authorized only the connection and these three commands. It neither reads documents nor executes DDL. The user `schema` won `IDX.LIST`. The credentials `app` remain without access to the inspection. The diagnosis of queries is local and does not require any of these privileges.
 
-`IndexDiagnosticsApplication` usa a conexão administrativa configurada para listar, comparar os índices JSON/HASH de clientes e explicar um método derivado. Não executa DDL. Depois de instalar a aplicação, execute:
+`IndexDiagnosticsApplication` uses the administrative connection configured to list, compare customer indexes JSON/HASH and explain a derived method. It does not execute DDL. After installing the application, run:
 
 ```powershell
 $env:DATADAM_ADMIN_PASSWORD = 'local-schema-password'
 java '-Dloader.main=com.anlohse.datadam.demo.IndexDiagnosticsApplication' -cp datadam-demo/target/datadam-demo-0.1.0-SNAPSHOT.jar org.springframework.boot.loader.launch.PropertiesLauncher
-# Acrescente --wait para aguardar até 30 segundos por índice existente.
+# Add --wait to wait up to 30 seconds per existing index.
 ```
 
-Após alterar a ACL no arquivo do Docker, reinicie o serviço para carregar a configuração: `docker compose restart datadam`. Não remova o volume. A entrega 6.1 usa comandos já existentes e não exige novo patch C++.
+After changing the ACL in the Docker file, restart the service to load the configuration: `docker compose restart datadam`. Do not remove the volume. Delivery 6.1 uses existing commands and does not require new C++ patch.
 
-`IndexDiagnosticsTest` cobre respostas, normalização, diferenças, estados, timeout, interrupção e propagação de falhas. `QueryDiagnosticsTest` compara planos com comandos de execução e cobre ordenação, aliases, UNIQUE, recusas e desempate. `IndexDiagnosticsIntegrationIT` valida JSON/HASH no Docker, ACL restrita, backfill UNIQUE com falha e equivalência com execução real. A suíte completa é executada por `scripts/run-local.ps1 -Restart -IntegrationTests -Background`.
+`IndexDiagnosticsTest` covers responses, normalization, differences, states, timeout, interruption and propagation of faults. `QueryDiagnosticsTest` compares plans with execution commands and ordination copper, aliases, UNIQUE, refusals and disengagement. `IndexDiagnosticsIntegrationIT` validates JSON/HASH in Docker, ACL restricted, backfill UNIQUE with failure and equivalence with actual execution. The complete suite is executed by `scripts/run-local.ps1 -Restart -IntegrationTests -Background`.

@@ -1,28 +1,28 @@
 # Spring Data Datadam
 
-Biblioteca Java com repositórios Spring Data que persistem entidades JSON/HASH e consultam os índices nativos do Datadam. O projeto contém núcleo `spring-data-datadam`, autoconfiguração `datadam-spring-boot-autoconfigure`, starter `datadam-spring-boot-starter` e aplicação HTTP `datadam-demo`.
+This Java library provides Spring Data repositories for JSON and HASH entities and queries Datadam’s native indexes. The project includes the `spring-data-datadam` core, `datadam-spring-boot-autoconfigure`, the `datadam-spring-boot-starter`, and the `datadam-demo` HTTP application. English is the official language of this project. Use it for documentation, Javadoc, issues, pull requests, and commit messages.
 
-O [roadmap de evolução](ROADMAP.md) acompanha as entregas concluídas, as próximas etapas e os critérios de conclusão de cada recurso. O [fluxo de CI e release](docs/ci-and-release.md) explica a validação automatizada, candidatos assinados, smoke test e o checklist de publicação no Maven Central. Preparar um candidato não envia nem publica artefatos.
+The [roadmap](ROADMAP.md) tracks completed features, upcoming work, and completion criteria. The [CI and release guide](docs/ci-and-release.md) covers automated verification, signed candidates, smoke tests, and the Maven Central publishing checklist. Preparing a candidate is a local operation.
 
-Os [exemplos executáveis das etapas 0 a 7](docs/demo-examples.md) ampliam o demo com produtos, reservas, chamados, artigos, estoque, preferências, carrinho, livros, dispositivos e importações. Após iniciar o ambiente, execute `.\scripts\run-demo-examples.ps1` ou selecione um item, por exemplo `.\scripts\run-demo-examples.ps1 -Scenario 3.2.1`. Cada roteiro verifica seus resultados e limpa seus próprios dados; há APIs em `/examples/products`, `/examples/stock` e `/examples/imports`.
+The [runnable examples for stages 0–7](docs/demo-examples.md) cover products, reservations, support tickets, articles, inventory, preferences, shopping carts, books, devices, and imports. Start the environment and run `.\scripts\run-demo-examples.ps1`, or select a scenario with `.\scripts\run-demo-examples.ps1 -Scenario 3.2.1`. Each script checks its results and cleans up its test data. The demo exposes `/examples/products`, `/examples/stock`, and `/examples/imports`.
 
-## Executar no Windows
+## Run on Windows
 
-Runtimes validados: Java 17, 21 e 25, com Spring Boot 3.5.16 e Spring Data Commons 3.5.13. O build registrado usa JDK 25.0.2/Maven 3.8.4, com release 17, e o Datadam roda em Docker Linux x86_64. Consulte a [matriz de compatibilidade e desempenho](docs/compatibility-and-performance.md) para imagens fixadas, escopo dos testes e medições publicadas.
+The project has been validated on Java 17, 21, and 25 with Spring Boot 3.5.16 and Spring Data Commons 3.5.13. The recorded build uses JDK 25.0.2 and Maven 3.8.4 with Java release 17. Datadam runs in Linux x86_64 containers. The [compatibility and performance matrix](docs/compatibility-and-performance.md) lists the pinned images, test coverage, and published measurements.
 
-Na pasta deste README:
+Run these commands from the repository root.
 
 ```powershell
-# Baixa a imagem oficial fixada quando necessário:
+# Downloads the pinned official image if needed.
 .\scripts\run-local.ps1 -IntegrationTests -Background
 
-# Para recompilar e substituir a instância iniciada pelo script:
+# Rebuilds and replaces the instance started by the script.
 .\scripts\run-local.ps1 -Restart -IntegrationTests -Background
 
-# Para construir a revisão C++ fixada, sem incluir alterações locais do checkout:
+# Builds the pinned C++ revision from committed sources.
 .\scripts\run-local.ps1 -BuildDatadam -Restart -IntegrationTests -Background
 
-# Insere três clientes e executa consultas por HTTP; pode ser repetido.
+# Seeds three customers and runs HTTP queries. Safe to run again.
 .\scripts\sample-data.ps1
 
 Invoke-RestMethod http://localhost:8080/
@@ -32,20 +32,20 @@ Invoke-RestMethod 'http://localhost:8080/customers/derived?city=SP&minimum=18&ma
 Invoke-RestMethod 'http://localhost:8080/customers/email?email=ana@example.test'
 ```
 
-A API fica em `127.0.0.1:8080`; o Datadam em `127.0.0.1:6380`. `POST /customers` salva/substitui um cliente, `GET /customers/{id}` lê e `DELETE /customers/{id}` remove. Email repetido de outro ID retorna HTTP 409. A consulta composta usa mínimo inclusivo e máximo exclusivo; a busca FT usa ambos inclusivos. A paginação HTTP aceita `page` a partir de zero e `size` entre 1 e 100. A resposta é um DTO de paginação estável, com `content` e `page.totalElements`.
+The API listens on `127.0.0.1:8080` and Datadam listens on `127.0.0.1:6380`. `POST /customers` saves or replaces a customer, `GET /customers/{id}` reads one, and `DELETE /customers/{id}` deletes one. Reusing an email for a different ID returns HTTP 409. The compound query includes the lower bound and excludes the upper bound. The FT query includes both bounds. HTTP pagination accepts a zero-based `page` and a `size` between 1 and 100. The page response has a stable shape with `content` and `page.totalElements`.
 
-O processo em segundo plano grava PID em `datadam-demo/target/demo.pid` e logs em `datadam-demo/target/demo.log`. Para parar:
+The background process writes its PID to `datadam-demo/target/demo.pid` and logs to `datadam-demo/target/demo.log`. Stop it with the following commands.
 
 ```powershell
 Stop-Process -Id ([int](Get-Content .\datadam-demo\target\demo.pid))
 docker compose down
 ```
 
-O volume `datadam-spring-data_datadam-data` preserva os documentos e índices após `docker compose down`. Para reconstruir a imagem do C++ localmente com `-BuildDatadam`, use um clone que contenha a revisão fixada e indique seu caminho com `DATADAM_SOURCE` (padrão `D:/cpp/workspaces/datadam`). As portas HTTP e Datadam são configuradas por `PORT` e pelo mapeamento no Compose junto com `DATADAM_PORT`, respectivamente.
+The `datadam-spring-data_datadam-data` volume keeps documents and indexes after `docker compose down`. To rebuild the C++ image with `-BuildDatadam`, use a checkout containing the pinned revision. Set `DATADAM_SOURCE` to its path (default `D:/cpp/workspaces/datadam`). Configure the HTTP port with `PORT` and the Datadam port through the Compose mapping and `DATADAM_PORT`.
 
-## Usar a biblioteca em outra aplicação
+## Use the library in another application
 
-`mvn install` instala o parent e os três artefatos no Maven local. Para instalar somente a biblioteca e validar seu consumo externo:
+`mvn install` installs the parent POM and all three artifacts in the local Maven repository. The commands below install only the library and validate a separate consumer.
 
 ```powershell
 mvn -B -ntp -pl datadam-spring-boot-starter -am install
@@ -53,9 +53,9 @@ mvn -B -ntp -pl datadam-spring-boot-starter -am install
 .\scripts\verify-consumer.ps1
 ```
 
-Para aplicações Boot, use o starter. Ele substitui a dependência direta no núcleo usada pelos exemplos anteriores deste SNAPSHOT:
+Spring Boot applications should use the starter dependency shown below. It replaces the direct dependency on the core module used by earlier SNAPSHOT examples.
 
-Desde 09/11/2026, o `groupId` é `com.anlohse.datadam` e os pacotes Java são `com.anlohse.datadam.*`. Ao atualizar de uma cópia anterior, substitua as dependências `io.datadam:*` e os imports/nomes de classes `io.datadam.*` pelos novos nomes. Os artifactIds permanecem iguais.
+Since November 9, 2026, the Maven `groupId` is `com.anlohse.datadam` and the Java packages are under `com.anlohse.datadam.*`. When upgrading an earlier checkout, update `io.datadam:*` dependencies and `io.datadam.*` imports or class names. The artifact IDs are unchanged.
 
 ```xml
 <dependency>
@@ -65,15 +65,15 @@ Desde 09/11/2026, o `groupId` é `com.anlohse.datadam` e os pacotes Java são `c
 </dependency>
 ```
 
-A aplicação consumidora deve gerenciar dependências com Spring Boot 3.5.x (esta implementação foi validada com 3.5.16). A configuração automática registra o pool, `DatadamCommands` e `DatadamTemplate`. Ative a descoberta de repositórios:
+The consuming application manages its dependencies through Spring Boot 3.5.x. This integration was validated with 3.5.16. Auto-configuration registers the connection pool, `DatadamCommands`, and `DatadamTemplate`. Enable repository discovery as shown below.
 
 ```java
 @SpringBootApplication
 @EnableDatadamRepositories(basePackageClasses = CustomerRepository.class)
-public class Application { /* main padrão SpringApplication.run */ }
+public class Application { /* Standard SpringApplication.run entry point */ }
 ```
 
-O [consumidor independente](examples/consumer-boot/README.md) tem POM próprio, fora do reactor, e executa um fluxo real contra Datadam com schema e credenciais separados. Para Spring sem Boot, use somente `spring-data-datadam` e configure os beans manualmente. A [API pública e política de compatibilidade](docs/public-api-and-compatibility.md) descreve essa divisão, migração, artefatos de fontes/Javadoc e limites. A versão continua `0.1.0-SNAPSHOT`; publicação remota e release pertencem ao item 8.2.
+The [standalone consumer](examples/consumer-boot/README.md) has its own POM outside the reactor. It runs against Datadam using a separate schema and credentials. For Spring without Boot, use `spring-data-datadam` and configure the beans manually. The [public API and compatibility policy](docs/public-api-and-compatibility.md) covers the module split, migration, sources, Javadoc, and limitations. The current version is `0.1.0-SNAPSHOT`. Roadmap item 8.2 covers releases and remote publication.
 
 ```yaml
 datadam:
@@ -85,15 +85,15 @@ datadam:
   ssl: false
 ```
 
-Há uma conexão RESP2 por comando, obtida de um pool Jedis. Por padrão, `datadam.validate-connection=true` executa PING ao obter a conexão para descartar conexões antigas após reinício do servidor; isso adiciona uma ida e volta por comando. `datadam.timeout` mantém o padrão de 5s para conexão, leitura e espera, com overrides em `connect-timeout`, `read-timeout` e `pool.max-wait`. Não são enviados comandos de cluster, configuração do servidor ou ativação de notificações de keyspace. Apenas o database 0 é usado, como exige o Datadam.
+Each command borrows one RESP2 connection from the Jedis pool. By default, `datadam.validate-connection=true` sends PING when borrowing a connection to discard stale connections after a server restart. This adds a round trip per command. `datadam.timeout` supplies the default of 5 seconds for connecting, reading, and waiting for the pool. Use `connect-timeout`, `read-timeout`, and `pool.max-wait` to override them. The library uses database 0 and sends no cluster commands, server configuration commands, or requests to enable keyspace notifications.
 
-O item 7.1 expõe limites/tamanhos do pool, health opcional e métricas Micrometer opcionais, sem argumentos ou credenciais na telemetria. A biblioteca mantém os recursos desativados por padrão; o demo os habilita em `/actuator/health` e `/actuator/metrics`, com detalhes de health ocultos. Consulte [diagnóstico operacional](docs/library-diagnostics.md) para configuração, custos, categorias de erro, dependências opcionais e exemplos.
+Roadmap item 7.1 covers pool sizing and limits, optional health checks, and optional Micrometer metrics. Telemetry omits arguments and credentials. Both features are off by default. The demo enables them at `/actuator/health` and `/actuator/metrics` and hides health details. See the [diagnostics guide](docs/library-diagnostics.md) for configuration, costs, error categories, optional dependencies, and examples.
 
-O item 7.2 valida reinício, saturação, quedas/timeout com escritas de resultado incerto e uma matriz ACL JSON/HASH. `datadam.ssl=true` passa a verificar também o nome/IP do endpoint TLS, além da confiança e validade do certificado; ajuste host/SAN de instalações existentes quando necessário. Os testes geram certificados efêmeros e executam cliente e servidor TLS no Docker. Consulte [falhas e segurança](docs/failures-and-security.md) para reprodução, limites e reconciliação sem retry cego.
+Roadmap item 7.2 covers restarts, pool saturation, connection drops and timeouts that leave write outcomes uncertain, and a JSON/HASH ACL matrix. `datadam.ssl=true` verifies the endpoint host name or IP in addition to certificate trust and validity. Adjust the host or certificate SAN in existing deployments where needed. The tests generate short-lived certificates and run the TLS client and server in Docker. See [failures and security](docs/failures-and-security.md) for reproduction, limitations, and how to reconcile uncertain outcomes before retrying.
 
-## Modelar entidade e índices
+## Model entities and indexes
 
-O arquivo `datadam-demo/src/main/java/com/anlohse/datadam/demo/Customer.java` é o exemplo completo. Cada entidade precisa de `@DatadamDocument(prefix = "...")` e exatamente um campo `@Id` do Spring Data, inclusive em records. O ID pode ser atribuído pela aplicação ou gerado ao salvar com `@DatadamGeneratedId`. As chaves são `prefix + id`; use prefixos exclusivos e sem sobreposição entre tipos.
+The full example is in `datadam-demo/src/main/java/com/anlohse/datadam/demo/Customer.java`. Every entity, including a record, needs `@DatadamDocument(prefix = "...")` and exactly one Spring Data `@Id` field. The application can assign the ID or generate it on save with `@DatadamGeneratedId`. Keys are `prefix + id`. Use distinct, non-overlapping prefixes for each type.
 
 ```java
 @DatadamDocument(prefix = "demo:customer:")
@@ -105,57 +105,57 @@ O arquivo `datadam-demo/src/main/java/com/anlohse/datadam/demo/Customer.java` é
 public record Customer(@Id String id, String email, String city, int age) {}
 ```
 
-`@DatadamIndex` é repetível. O tipo padrão é `COMPOUND` (`IDX.CREATE ... ON JSON`); `kind = SEARCH` cria `FT.CREATE ... ON JSON`. Campos aceitam JSONPath, alias e tipos TAG/NUMERIC. Apenas TAG de índices FT aceita `caseSensitive = true`. TAG de IDX sempre diferencia maiúsculas; TAG de FT ignora maiúsculas ASCII por padrão. Arrays JSON podem produzir vários valores indexados.
+`@DatadamIndex` is repeatable. The standard type is `COMPOUND` (`IDX.CREATE ... ON JSON`); `kind = SEARCH` creates `FT.CREATE ... ON JSON`. Fields accept JSONPath, aliases and types TAG/NUMERIC. Only TAG of accepted FT indexes `caseSensitive = true`. TAG of IDX always difference capitals; TAG of FT ignore capitals ASCII by standard. Arrays JSON can produce several indexed values.
 
-A ordem dos campos em um índice composto é parte do contrato: igualdade nos campos iniciais e faixa no seguinte selecionam uma fatia contígua. Campos ausentes ou numéricos inválidos excluem o documento de IDX. FT mantém documentos que não têm todos os campos. UNIQUE é imposto atomicamente pelo servidor e convertido em `DuplicateKeyException`.
+The order of the fields in a composite index is part of the contract: equality in the initial fields and band in the following select a contiguous slice. Invalid missing or numerical fields exclude the document of IDX. FT maintains documents that do not have all the fields. UNIQUE is imposed atomically by the server and converted into `DuplicateKeyException`.
 
-## Formato HASH
+## HASH storage
 
-Use `@DatadamDocument(prefix = "...", storage = DatadamStorage.HASH)` para persistir a entidade como HASH, com a mesma API CRUD, TTL, geração de IDs, auditoria, callbacks e versão. JSON continua sendo o padrão. Campos null são omitidos e coleções/objetos aninhados ficam como JSON dentro de cada campo HASH.
+Use `@DatadamDocument(prefix = "...", storage = DatadamStorage.HASH)` to persist the entity as HASH, with the same API CRUD, TTL, generation of IDs, audit, callbacks and version. JSON continues to be the default. Null fields are omitted and nested collections/objects remain as JSON within each field HASH.
 
-O CRUD HASH exige a extensão Datadam HREPLACE e a correção de rollback incluídas no [patch do servidor](server-patches/README.md). A imagem local foi atualizada; outros servidores precisam dessa evolução. Consulte [entidades HASH](docs/hash-entities.md) para conversões, atomicidade e `/hash-notes`.
+CRUD HASH requires Datadam extension HREPLACE and rollback correction included in [server patch](server-patches/README.md). The local image has been updated. Other servers need this evolution. See [entities HASH](docs/hash-entities.md) for conversions, atomity and `/hash-notes`.
 
-Schema ON HASH e consultas IDX/FT declaradas, derivadas e programáticas estão disponíveis com `/hash-customers`. `IndexField.separator` explicita a divisão de TAGs; IDX HASH exige alias igual ao campo e FT permite aliases próprios. Consulte [índices e consultas HASH](docs/hash-indexes-and-queries.md) para diferenças de TAG/NUMERIC e limites de igualdade na derivação.
+Scheme ON HASH and queries IDX/FT declared, derived and programmatic are available with `/hash-customers`. `IndexField.separator` explicit the division of TAGs; IDX HASH requires aliases equal to the field and FT allows own aliases. See [indexes and queries HASH](docs/hash-indexes-and-queries.md) for differences of TAG/NUMERIC and limits of equality in derivation.
 
-## Projeções nativas
+## Native projections
 
-Consultas anotadas IDX/FT podem retornar records e interfaces fechadas em List/Page, selecionando somente as propriedades solicitadas. A API programática usa `ProjectionSpec` com `projectQuery`/`projectSearch`. `@ProjectionProperty` mapeia nomes do DTO para propriedades Java da entidade. Não há leitura completa adicional nem callbacks de entidade nas projeções.
+Annotated queries IDX/FT can return records and closed interfaces to List/Page, selecting only the requested properties. The API programmatic uses `ProjectionSpec` with `projectQuery`/`projectSearch`. `@ProjectionProperty` maps names of DTO for the entity's Java properties. There is no additional complete reading or entity callbacks on the projections.
 
-Projeções JSON requerem a opção Datadam RETURNJSON, incluída no [patch de servidor](server-patches/README.md), para distinguir JSON null da string `"null"`; HASH usa RETURN existente. Consulte [projeções](docs/projections.md) para o conjunto suportado, conversões, aliases e os endpoints `/customer-projections`.
+Projections JSON require Datadam RETURNJSON, included in [server patch](server-patches/README.md), to distinguish JSON null from string `"null"`; HASH uses RETURN existing. See [projections](docs/projections.md) for supported set, conversions, aliases and endpoints `/customer-projections`.
 
-## Controle de concorrência
+## Optimistic locking
 
-Adicione `@Version Long version` para exigir a versão atual ao atualizar ou excluir. Uma entidade nova começa com versão null e é persistida com zero; cada atualização incrementa o contador. A comparação e a gravação acontecem no servidor: uma versão obsoleta gera `OptimisticLockingFailureException`, preservando documento, TTL e índices.
+Add `@Version Long version` to require the current version when updating or deleting. A new entity starts with null version and is persistent with zero. Each update increases the counter. Comparison and recording happens on the server: an obsolete version generates `OptimisticLockingFailureException`, preserving document, TTL and indexes.
 
-O exemplo `/versioned-notes` combina versão, ID gerado, auditoria, callbacks e TTL. PUT recebe a versão esperada no corpo e DELETE em `?version=...`; conflitos retornam HTTP 409. Consulte [concorrência com @Version](docs/optimistic-locking.md) para tipos, exclusões, migração de documentos existentes e limites dos comandos nativos.
+The example `/versioned-notes` combines version, generated ID, audit, callbacks and TTL. PUT receives the expected version in the body and DELETE in `?version=...`. Conflicts return HTTP 409. See [optimistic locking with @Version](docs/optimistic-locking.md) for types, deletions, migration of existing documents and limits of native commands.
 
-## Operações por JSONPath
+## JSONPath operations
 
-`template.json(Customer.class)` oferece read, set e remove com `JsonPath<T>`, incluindo TypeReference para coleções. A leitura distingue chave ausente, caminho sem matches e JSON null e normaliza as respostas JSONPath/legadas. Alterações simples usam comandos JSON nativos, preservam a expiração e atualizam IDX/FT.
+`template.json(Customer.class)` offers read, set and remove with `JsonPath<T>`, including TypeReference for collections. Reading distinguishes missing key, no-game path and JSON null and normalizes JSONPath/associated responses. Simple changes use native JSON commands, preserve expiration and update IDX/FT.
 
-A API protege o ID e o campo de TTL e recusa alterações em entidades com versão, auditoria ou callbacks de gravação; nesses casos, use save. Consulte [operações por JSONPath](docs/json-path-operations.md) para exemplos, respostas, limites e o endpoint `/customers/{id}/json`.
+The API protects the ID and TTL fields and rejects partial mutations on entities that use versioning, auditing, or write callbacks. Use save for those entities. See [JSONPath operations](docs/json-path-operations.md) for examples, responses, limits, and the `/customers/{id}/json` endpoint.
 
-O mesmo objeto oferece increment/multiply, arrayAppend/arrayInsert/arrayPop/arrayTrim, arrayLength/arrayIndex e merge de objetos. Cada alteração usa um comando nativo e preserva o TTL; sequências de chamadas não são transações. Consulte [incrementos, arrays e merge](docs/json-native-mutations.md) para retornos, concorrência, UNIQUE e os novos exemplos HTTP.
+The same object supports increment/multiply, arrayAppend/arrayInsert/arrayPop/arrayTrim, arrayLength/arrayIndex, and object merges. Each mutation uses a native command and preserves TTL. A sequence of calls can partially succeed. See [increments, arrays, and merges](docs/json-native-mutations.md) for return values, concurrency, UNIQUE constraints, and HTTP examples.
 
-## IDs e entidades novas
+## IDs and new entities
 
-Adicione `@DatadamGeneratedId` ao campo `@Id` para gerar UUID quando o ID estiver ausente. O padrão aceita String e UUID; beans `DatadamIdGenerator` permitem estratégias próprias. IDs informados são preservados. Use sempre o retorno de `save` e `saveAll`: records recebem uma nova instância com o ID, enquanto classes mutáveis são preenchidas após sucesso.
+Add `@DatadamGeneratedId` to the `@Id` field to generate a UUID when the ID is missing. The default generator supports String and UUID. Provide a `DatadamIdGenerator` bean for a custom strategy. Supplied IDs are preserved. Always use the value returned by `save` or `saveAll`. Records are returned as new instances with the generated ID. Mutable classes receive the ID after a successful save.
 
-O exemplo `/temporary-notes` aceita POST sem ID. Consulte [IDs e identificação de entidades novas](docs/entity-identity.md) para tipos, detecção de estado, `Persistable`, colisões, integração com TTL e comportamento em falhas.
+The example `/temporary-notes` accepts POST without ID. See [IDs and identification of new entities](docs/entity-identity.md) for types, status detection, `Persistable` collisions, integration with TTL and failure behavior.
 
-## TTL de entidades
+## Entity TTL
 
-Use `@DatadamDocument(timeToLive = 60, prefix = "note:")` para um prazo padrão em segundos e `@DatadamTimeToLive(unit = TimeUnit.MILLISECONDS)` em um campo integral ou Duration para substituir o prazo por entidade. TTL positivo é renovado em cada `save`; sem política de TTL, a expiração existente é preservada. `repository.persist(id)` remove explicitamente a expiração.
+Use `@DatadamDocument(timeToLive = 60, prefix = "note:")` to set a default TTL in seconds. Use `@DatadamTimeToLive(unit = TimeUnit.MILLISECONDS)` on an integral or Duration field to override the TTL for each entity. Each `save` renews a positive TTL. With no TTL policy, the existing expiration is preserved. `repository.persist(id)` explicitly removes the expiration.
 
-O exemplo completo está na API `/temporary-notes`. Consulte [TTL de entidades](docs/entity-ttl.md) para regras, permissões, exemplos e limites de atomicidade e recuperação após crash do servidor.
+The full example is in API `/temporary-notes`. See [TTL of entities](docs/entity-ttl.md) for rules, permissions, examples and limits of atomicity and recovery after server crash.
 
-## Auditoria e callbacks
+## Auditing and callbacks
 
-Ative `@EnableDatadamAuditing` para preencher `@CreatedDate`, `@LastModifiedDate`, `@CreatedBy` e `@LastModifiedBy` do Spring Data. `AuditorAware` fornece o autor; `DateTimeProvider` ou Clock controla as datas. O recurso é opcional e suporta classes mutáveis e records.
+Enable `@EnableDatadamAuditing` to populate Spring Data's `@CreatedDate`, `@LastModifiedDate`, `@CreatedBy`, and `@LastModifiedBy`. `AuditorAware` supplies the actor. A `DateTimeProvider` or Clock supplies the time. Auditing is optional and supports mutable classes and records.
 
-Callbacks BeforeConvert, BeforeSave, AfterSave e AfterConvert permitem normalização, validação e observação. O exemplo `/audited-notes` recebe apenas campos de negócio e preserva os dados de criação nas atualizações. Consulte [auditoria e callbacks](docs/auditing-and-callbacks.md) para ordem, configuração e semântica de falhas.
+Callbacks BeforeConvert, BeforeSave, AfterSave and AfterConvert allow normalization, validation and observation. The example `/audited-notes` receives only business fields and preserves creation data in updates. See [audit and callbacks](docs/auditing-and-callbacks.md) for order, configuration and fault semantics.
 
-## Repositórios e consultas
+## Repositories and queries
 
 ```java
 public interface CustomerRepository extends DatadamRepository<Customer, String> {
@@ -168,7 +168,7 @@ public interface CustomerRepository extends DatadamRepository<Customer, String> 
 }
 ```
 
-O módulo usa a infraestrutura `RepositoryFactoryBeanSupport`/`RepositoryFactorySupport` do Spring Data Commons. Repositórios estendem `ListCrudRepository` e acrescentam `query`, `count`, `lookup` e `search`. Métodos com consulta anotada devem ter exatamente uma anotação de consulta e retornar `Page<T>` ou `List<T>`. Para essas consultas anotadas, sem `Pageable`, o limite é 100; `List<T>` retorna a página solicitada. As posições `?N` correspondem aos argumentos Java, contando desde zero. FT vincula valores usando `PARAMS` (`$pN`), e IDX envia cada valor como um argumento RESP separado. Não há interpolação de valores na expressão. Métodos sem essas anotações são derivados do nome, com as regras da seção seguinte.
+The module uses the Spring Data Commons infrastructure in `RepositoryFactoryBeanSupport` and `RepositoryFactorySupport`. Repositories extend `ListCrudRepository` and add `query`, `count`, `lookup`, and `search`. Annotated methods must have exactly one query annotation and return `Page<T>` or `List<T>`. For an annotated query without `Pageable`, the limit is 100. `List<T>` returns the requested page. Positions such as `?N` refer to zero-based Java argument indexes. FT binds values using `PARAMS` and `$pN`. IDX sends each value as a separate RESP argument. The library keeps values out of the query expression. Methods without query annotations are derived from their names using the rules below.
 
 ```java
 var query = CompoundQuery.all()
@@ -186,11 +186,11 @@ var search = new SearchQuery(
 Page<Customer> results = repository.search("demo:customers:search", search, PageRequest.of(0, 20));
 ```
 
-`query` retorna em ordem do índice; use `.desc()` ou `@IdxQuery(descending = true)` para inverter. `Pageable.sort` em IDX é rejeitado para não prometer uma ordenação arbitrária. FT aceita um campo de ordenação, em `SearchQuery.sort` ou no `Pageable`; critérios conflitantes são rejeitados. Consultas só aceitam índices declarados para a entidade e o tipo correto (IDX/FT).
+`query` returns in order of index. Use `.desc()` or `@IdxQuery(descending = true)` to reverse. `Pageable.sort` in IDX is rejected in order not to promise an arbitrary sorting. FT accepts an sorting field, in `SearchQuery.sort` or in `Pageable`. Conflicting criteria are rejected. Consultations only accept declared indexes for the entity and the correct type (IDX/FT).
 
-## Consultas derivadas de nomes
+## Derived queries
 
-Sem `@IdxQuery`/`@FtQuery`, a biblioteca usa o parser `PartTree` do Spring Data para compilar métodos em IDX ou FT. O exemplo real está em `CustomerRepository`:
+Without `@IdxQuery`/`@FtQuery`, the library uses Spring Data parser `PartTree` to compile methods in IDX or FT. The real example is in `CustomerRepository`:
 
 ```java
 Optional<Customer> findByEmail(String email);
@@ -205,91 +205,91 @@ List<Customer> findByCityInOrderByAgeAsc(Collection<String> cities);
 Optional<Customer> findFirstByCityOrderByAgeDesc(String city);
 ```
 
-A API de exemplo expõe `GET /customers/derived?city=SP&minimum=18&maximum=40`: a consulta é derivada, `Between` inclui os dois limites e a ordem é idade decrescente. O endpoint por email também usa `findByEmail` sem anotação.
+The API example exposes `GET /customers/derived?city=SP&minimum=18&maximum=40`: the query is derived, `Between` includes the two limits and the order is decreasing age. The email endpoint also uses `findByEmail` without annotation.
 
-| Recurso | Comportamento |
+| Appeal | Behaviour |
 |---|---|
-| Igualdade (`Is`, `Equals` ou sem sufixo) | TAG exato ou igualdade NUMERIC |
-| `Between` | Faixa numérica inclusiva nos dois limites |
-| `GreaterThan`, `GreaterThanEqual`, `LessThan`, `LessThanEqual` | Faixas numéricas com limites correspondentes |
-| `And`, `Or` | Interseção/união; grupos do parser Spring são preservados com parênteses em FT |
-| `In` | Coleção ou array de valores escalares; usa união em FT; coleção vazia é rejeitada |
-| `StartingWith` | Prefixo String literal; faixa TAG em IDX ou prefixo parametrizado em FT |
-| `Not`, `NotIn` | Negação numérica em FT, exigindo presença do campo; exclui ausentes/null/inválidos |
-| `True`, `False` | Igualdade em uma propriedade booleana |
-| `IgnoreCase`, `AllIgnoreCase` | Exigem TAG FT sem CASESENSITIVE; aceitam parâmetros ASCII, conforme o folding nativo do Datadam |
-| `OrderBy`, `Sort`, `Pageable.sort` | Ordenação nativa compatível com o índice; ordens conflitantes são rejeitadas |
-| `TopN`, `FirstN` | Limite nativo para List; `Top1`/`First1` também aceitam entidade/Optional |
-| `Page<T>` | Conteúdo e total; IDX faz uma contagem separada |
-| `Slice<T>` | Busca tamanho da página + 1; IDX não faz contagem |
-| `List<T>` | Sem Pageable/Top/First, retorna todos os resultados, sem limite implícito de 100 |
-| Entidade ou `Optional<T>` | No máximo um resultado; duplicidade lança `IncorrectResultSizeDataAccessException` |
-| `countBy...` / `existsBy...` | Retornam long/Long e boolean/Boolean; IDX usa COUNT ou QUERY LIMIT 0 1 NOCONTENT |
+| Equality (`Is`, `Equals` or no suffix) | TAG exact or equal NUMERIC |
+| `Between` | Numerical range inclusive of both boundaries |
+| `GreaterThan`, `GreaterThanEqual`, `LessThan`, `LessThanEqual` | Numerical bands with corresponding limits |
+| `And`, `Or` | Intersection/union; Spring parser groups are preserved with FT parentheses |
+| `In` | Collection or array of scalar values. Use FT union. Empty collection is rejected |
+| `StartingWith` | Literal string prefix. Band TAG in IDX or parameterized FT prefix |
+| `Not`, `NotIn` | Numerical denial in FT, requiring field presence. Excludes absent/null/invalid |
+| `True`, `False` | Equality in a Boolean property |
+| `IgnoreCase`, `AllIgnoreCase` | Requires TAG FT without CASESENSITIVE. Accepts parameters ASCII, according to Datadam's native folding |
+| `OrderBy`, `Sort`, `Pageable.sort` | Native ordering compatible with the index. Conflicting orders are rejected |
+| `TopN`, `FirstN` | Native limit for List; `Top1`/`First1` also accept entity/Optional |
+| `Page<T>` | Content and total; IDX makes a separate count |
+| `Slice<T>` | Search page size +1; IDX does not count |
+| `List<T>` | Without Pageable/Top/First, returns all results, with no implicit limit of 100 |
+| Entity or `Optional<T>` | Maximum one result. Double pitch `IncorrectResultSizeDataAccessException` |
+| `countBy...` / `existsBy...` | Return long/Long and boolean/Boolean; IDX uses COUNT or QUERY LIMIT 0 1 NOCONTENT |
 
-A biblioteca prefere índices IDX compatíveis, pontuando igualdade nos campos iniciais e faixa no seguinte. Empates são resolvidos pelo nome do índice, de forma determinística. Lookup de igualdade completa em UNIQUE usa `IDX.GET`. OR/IN e outras combinações que precisam de FT são compiladas em `FT.SEARCH` com `PARAMS`. Não há SCAN nem filtragem Java para executar esses métodos.
+The library prefers compatible IDX indexes, scoring equality predicates on leading fields and a range on the next field. It breaks ties by index name. Equality on every field of a UNIQUE index uses `IDX.GET`. OR/IN and other combinations that require FT compile to `FT.SEARCH` with `PARAMS`. These methods run without SCAN or Java-side filtering.
 
-A escolha do índice preserva o significado da consulta:
+The choice of index preserves the meaning of the query:
 
-- Todos os campos de um índice composto precisam estar exigidos pelos predicados. Usar `(city, age)` para apenas `findByCity` perderia documentos sem age; nesse caso é necessário um IDX somente por city ou um FT compatível.
-- Igualdade de String diferencia maiúsculas. Índices FT usados para igualdade exata ou ordenação TAG devem declarar `caseSensitive = true`; TAG FT padrão serve para `IgnoreCase`. A demonstração mantém o FT original para busca flexível e adiciona `demo:customers:derived` com TAGs exatos. O alias `home` desse índice corresponde à propriedade Java `city`.
-- Nomes de propriedades Java são resolvidos pelos nomes JSON de Jackson, inclusive `@JsonProperty` e naming strategy. A derivação aceita caminhos de propriedades escalares com membros JSON simples; coleções/maps não são derivados. Os JSONPaths declarados nos índices devem corresponder ao caminho serializado (por exemplo `$.city`).
-- Ordenação IDX deve seguir os campos variáveis do índice; campos fixados por igualdade podem ser omitidos da ordem. FT aceita um único campo de ordenação. A ordenação solicitada nunca é aplicada depois de paginar.
-- Sem índice compatível para os predicados e a ordem estática, a criação do repositório falha. Uma ordem dinâmica incompatível falha antes de enviar a consulta. Não há criação de schema automática como efeito da derivação.
+- All fields of a composite index need to be required by the predicates. Using `(city, age)` for only `findByCity` would lose documents without an age. In this case a IDX is required only by city or a compatible FT.
+- Equilibrium of String difference capitals. FT indices used for exact equality or ordination TAG must declare `caseSensitive = true`; TAG FT standard serves for `IgnoreCase`. The demonstration maintains the original FT for flexible search and adds `demo:customers:derived` with exact TAGs. The alias `home` of this index corresponds to the Java property `city`.
+- Java property names are solved by Jackson's JSON names, including `@JsonProperty` and naming strategy. The derivation accepts scalar property paths with simple JSON members. Collections/maps are not derived. JSONPaths declared in the indexes must correspond to the serialized path (e.g. `$.city`).
+- Sorting IDX must follow the variable fields of the index. Fields fixed by equality can be omitted from the order. FT accepts a single sorting field. The requested sorting is never applied after paginar.
+- Without compatible index for the predicates and static order, the creation of the repository fails. An incompatible dynamic order fails before sending the query. There is no creation of automatic schema as the effect of derivation.
 
-Os parâmetros não podem ser null; TAG vazio e IN/NOT_IN vazio são rejeitados. `Not`/`NotIn` são suportados somente para números. `IsNull`, `Containing`, `Like`, negação TAG, exclusão derivada, projeções derivadas, parâmetros Limit/scrolling e comparação textual por faixa ainda não são suportados e falham na inicialização. `Top`/`First` não podem ser combinados com Pageable, count ou exists; retorno de entidade/Optional também não aceita Pageable. As consultas anotadas continuam disponíveis para expressar diretamente recursos nativos fora desse subconjunto.
+Parameters must be non-null. The library rejects empty TAG values and empty IN/NOT_IN collections. `Not` and `NotIn` support numeric fields only. Repository initialization rejects `IsNull`, `Containing`, `Like`, TAG negation, derived deletes, derived projections, Limit and scrolling parameters, and text range comparisons. `Top` and `First` cannot be combined with Pageable, count, or exists. Entity and Optional results cannot take Pageable. Annotated queries can express additional native operations.
 
-Consulte a [matriz de operadores e semântica da derivação](docs/derived-queries.md) para prefixos, negação, campos ausentes, limitações TAG/IgnoreCase e exemplos HTTP em `/customer-queries/json` e `/customer-queries/hash`.
+See [operator matrix and derivation semantics](docs/derived-queries.md) for prefixes, denial, absent fields, limitations TAG/IgnoreCase and examples HTTP in `/customer-queries/json` and `/customer-queries/hash`.
 
-A sintaxe segue os [nomes de consultas do Spring Data](https://docs.spring.io/spring-data/commons/reference/repositories/query-keywords-reference.html), respeitando o subconjunto suportado por este módulo.
+The syntax follows the [Spring Data Query Names](https://docs.spring.io/spring-data/commons/reference/repositories/query-keywords-reference.html), respecting the subset supported by this module.
 
-## Schema, backfill e ACL
+## Schema, backfill, and ACLs
 
-Migrações explícitas usam `IndexMigration` e `DatadamIndexMigrations`: alvo versionado, preparação retomável e validação antes do deploy. A troca de consumidores e o DROP do anterior são etapas separadas; duplicatas UNIQUE exigem resolução e descarte explícitos. Consulte [migrações de índices](docs/index-migrations.md), incluindo a CLI `IndexMigrationApplication` e as credenciais de preparação/retirada.
+`IndexMigration` and `DatadamIndexMigrations` prepare a versioned target, resume interrupted preparation where possible, and validate the target before deployment. Switching consumers and dropping the old index are separate steps. A UNIQUE conflict requires resolving the duplicate data and explicitly discarding the failed target. See [index migrations](docs/index-migrations.md) for the `IndexMigrationApplication` CLI and credentials for preparation and retirement.
 
-O item 6.1 acrescenta `DatadamIndexOperations.listIndexes/status/inspect/compare` e `DatadamQueryDiagnostics.explain` para acompanhar backfill, comparar schema com diferenças por campo e explicar o índice escolhido na derivação. A inspeção não executa DDL; FT.INFO tem custo proporcional ao índice, enquanto `status` usa somente IDX.INFO. Consulte [inspeção e diagnóstico](docs/index-diagnostics.md) para API, permissões e exemplo administrativo local.
+The item 6.1 adds `DatadamIndexOperations.listIndexes/status/inspect/compare` and `DatadamQueryDiagnostics.explain` to follow backfill, compare schema with differences by field and explain the index chosen in the derivation. The inspection does not perform DDL; FT.INFO has proportional cost to the index, while `status` uses only IDX.INFO. See [inspection and diagnosis](docs/index-diagnostics.md) for API, permissions and local administrative example.
 
-Criação de índices é uma etapa explícita de migração:
+Indexing is an explicit migration step:
 
 ```java
-// commandsAdmin deve usar uma conexão com o usuário de schema.
+// commandsAdmin should use a connection with the schema user.
 new DatadamIndexOperations(commandsAdmin)
     .ensureIndexes(Customer.class, Duration.ofSeconds(30));
 ```
 
-`ensureIndexes` cria os índices ausentes, aguarda `IDX.INFO state=ready`, detecta `failed` e valida a definição existente (prefixo, tipo JSON, campos/ordem, UNIQUE e modo de case dos TAGs FT). Definição incompatível falha sem descartar índices ou dados. Um backfill UNIQUE com duplicatas falha; corrija os dados e migre explicitamente. A criação é idempotente. A espera também se aplica a FT para que a inicialização não aceite resultados parciais durante backfill.
+`ensureIndexes` creates the missing indexes, waits `IDX.INFO state=ready`, detects `failed` and validates the existing definition (prefix, type JSON, fields/order, UNIQUE and case mode of the FT TAGs). Incompatible definition fails without discarding indexes or data. A backfill UNIQUE with duplicates fails. Corrects the data and migrates explicitly. The creation is identical. The wait also applies to FT so that the initialization does not accept partial results during backfill.
 
-O script executa `SchemaApplication` antes da API, com um usuário `schema`. O processo da API usa apenas `app`. A configuração de desenvolvimento está em `docker/datadam.conf`:
+The script runs `SchemaApplication` before API, with one user `schema`. The process of API uses only `app`. The development configuration is in `docker/datadam.conf`:
 
-- `default off` exige autenticação; `protected-mode yes` permanece ativo.
-- `schema` pode criar, inspecionar e remover índices; a API não recebe esses comandos.
-- `app` pode ler/gravar documentos somente em `demo:customer:*`, `demo:temporary:*` e `demo:audited:*`, consultar índices e executar os comandos necessários ao TTL.
-- `reader` só lê chaves `demo:customer:visible*`, para testar filtros ACL de resultados e totais.
-- O memcache está desativado e apenas o loopback do host recebe a porta publicada.
+- `default off` requires authentication; `protected-mode yes` remains active.
+- `schema` can create, inspect and remove indexes; API does not receive these commands.
+- `app` can read/engrave documents only in `demo:customer:*`, `demo:temporary:*` and `demo:audited:*`, consult indexes and execute the necessary commands to TTL.
+- `reader` read only keys `demo:customer:visible*`, to test filters ACL for results and totals.
+- The memcache is disabled and only the host loopback receives the published door.
 
-As senhas incluídas são exclusivamente para desenvolvimento local. A configuração é montada como somente leitura e as regras ACL estão nela; não é usado `ACL SAVE`, `aclfile` ou `CONFIG REWRITE`. A documentação C++ tem uma menção residual a `protected-mode` na lista de itens não suportados, mas a seção dedicada, a configuração e a implementação o suportam; a execução local mantém a opção habilitada.
+The passwords included are exclusively for local development. The configuration is mounted as read only and the rules ACL are in it. It is not used `ACL SAVE`, `aclfile` or `CONFIG REWRITE`. The C++ documentation has a residual mention of `protected-mode` in the list of unsupported items, but the dedicated section, configuration and implementation support it. The local execution keeps the option enabled.
 
-## Testes e limites desta versão
+## Tests and limitations
 
 ```powershell
 ./scripts/build-test-image.ps1
 docker compose --env-file config/test-images.properties up -d --no-build
-# run-local.ps1 -IntegrationTests prepara também as JVMs fixadas e executa toda a matriz.
+# run-local.ps1 -IntegrationTests also prepares the fixed JVMs and executes the entire matrix.
 mvn verify -Pintegration
 mvn install
 ```
 
-`mvn test` executa testes de contrato e validação da derivação sem depender do Docker. `mvn verify -Pintegration` executa adicionalmente testes de integração reais, que falham se o Datadam não estiver acessível; nenhuma troca por Redis comum ou mock é feita. A suíte usa os usuários da configuração local e cria/remove apenas suas próprias chaves `it-*`/`visible-it-*`, além de um índice temporário de teste. Não usa FLUSHALL. Os testes cobrem CRUD JSON, faixas, ordem/páginas, UNIQUE e concorrência, backfill com duplicatas, schema incompatível, manutenção automática após JSON.NUMINCRBY, FT com AND/OR/NOT, parâmetros literais, TTL, ACL e HTTP. Para derivação, verificam também comandos usados (lookup, contagem e Slice), limites inclusivos/exclusivos, OR/IN, case, campos ausentes, ordenação dinâmica, resultados únicos e listas acima de 100 registros.
+`mvn test` executes contract testing and validation of the derivative without depending in Docker. `mvn verify -Pintegration` performs additionally real integration tests, which fail if Datadam is not accessible. No exchange for Common Redis or mock is made. The suite uses users of the local configuration and creates/removes only its own keys `it-*`/`visible-it-*`, in addition to a temporary test index. It does not use FLUSHALL. The tests cover CRUD JSON, tracks, order/pages, UNIQUE and competition, backfill with duplicates, incompatible scheme, automatic maintenance after JSON.NUMINCRBY, FT with AND/OR/NOT, literal parameters, TTL, ACL and HTTP. For derivation, also check used commands (lookup, count and Slice), inclusive/exclusive limits, OR/IN, case, missing fields, dynamic sorting, unique results and lists above 100 records.
 
-Se o Maven falhar com PKIX nesta máquina, o script já usa o repositório de certificados confiáveis do Windows. Para execução manual, configure `MAVEN_OPTS` com `-Djavax.net.ssl.trustStoreType=Windows-ROOT -Djavax.net.ssl.trustStore=NONE`, mantendo a validação TLS.
+If Maven fails with PKIX on this machine, the script already uses the Windows trusted certificate repository. For manual execution, configure `MAVEN_OPTS` with `-Djavax.net.ssl.trustStoreType=Windows-ROOT -Djavax.net.ssl.trustStore=NONE`, maintaining validation TLS.
 
-Escopo de 0.1:
+Scope of 0.1:
 
-- Mapeamento de repositórios em JSON e HASH, operações JSON adicionais e projeções nativas IDX/FT, conforme as páginas específicas de cada recurso.
-- Consultas anotadas, derivação de nomes no subconjunto documentado acima e API programática, com IDs atribuídos ou geração opcional, TTL, auditoria/callbacks e optimistic locking. A etapa 9 registrou os limites do protocolo e adiou o gerenciador de transações Spring. [Contrato e testes de transações](docs/spring-transactions.md).
-- `Page` de IDX faz `IDX.COUNT` e `IDX.QUERY` separados. Sob concorrência, conteúdo e total podem refletir momentos distintos. Para somente contagem, use `count(index, query)`; FT já devolve o total no mesmo comando.
-- `findAll`, `count()` e `deleteAll()` percorrem o prefixo usando SCAN por tipo de armazenamento (ReJSON-RL ou hash). Para consultas de negócio e grandes coleções, prefira índices; o `DBSIZE` do Datadam é uma estimativa global.
-- `saveAll` e exclusões em lote são sequenciais e podem ter êxito parcial. Sem política de TTL, `save` faz JSON.SET e mantém o prazo existente. Com TTL, usa um script isolado para gravar e expirar, com os limites de durabilidade descritos na documentação de TTL. Não há emulação de índices com sets de Redis.
-- FT oferece TAG/NUMERIC; não oferece TEXT, GEO, VECTOR, agregações ou scoring. Opções de ordenação não suportadas são rejeitadas.
-- A API de exemplo tem bind local; autenticação HTTP e implantação externa estão fora do escopo desta aplicação de teste.
+- Repository mapping in JSON and HASH, additional operations JSON and native projections IDX/FT, according to the specific pages of each resource.
+- Annotated queries, derivation of names in the above documented and API programmatic subset, with assigned IDs or optional generation, TTL, audit/callbacks, and optimistic positioning. Step 9 recorded the protocol limits and postponed the Spring transaction manager. [Contract and transaction testing](docs/spring-transactions.md).
+- `Page` of IDX makes `IDX.COUNT` and `IDX.QUERY` separate. Under competition, content and total can reflect different moments. For counting only, use `count(index, query)`; FT already returns the total in the same command.
+- `findAll`, `count()` and `deleteAll()` travel the prefix using SCAN by storage type (ReJSON-RL or hash). For business queries and large collections, prefer indexes; Datadam's `DBSIZE` is a global estimate.
+- `saveAll` and batch deletions are sequential and may have partial success. Without a policy of TTL, `save` does JSON.SET and maintains the existing deadline. With TTL, use an isolated script to record and expire, with the durability limits described in the TTL documentation. There is no emulation of indexes with Redis sets.
+- FT offers TAG/NUMERIC. Does not offer TEXT, GEO, VECTOR, aggregations or scoring. Unsupported sorting options are rejected.
+- The API example has local blind. Authentication HTTP and external deployment are outside the scope of this test application.
 
-Fontes do protocolo usadas: `D:/cpp/workspaces/datadam/docs/secondary-indexes.md`, `search.md`, `json.md`, a seção de diferenças de `commands.md` e ACL/protected-mode de `security.md`. A escolha de uma factory específica segue a infraestrutura de [repositórios Spring Data](https://docs.spring.io/spring-data/jpa/reference/repositories/custom-implementations.html).
+The protocol reference is in `D:/cpp/workspaces/datadam/docs/secondary-indexes.md`, `search.md`, `json.md`, the differences section of `commands.md`, and the ACL and protected-mode sections of `security.md`. The dedicated repository factory follows the [Spring Data repository infrastructure](https://docs.spring.io/spring-data/jpa/reference/repositories/custom-implementations.html).

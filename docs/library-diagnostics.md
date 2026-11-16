@@ -1,8 +1,8 @@
-# Diagnóstico operacional da biblioteca
+# Library diagnostics
 
-O item 7.1 acrescenta configuração explícita do pool, health check opcional e métricas opcionais. O transporte continua RESP2/Jedis, com uma conexão emprestada por comando e sem repetição automática de gravações. Nenhuma alteração de servidor C++ é necessária.
+Item 7.1 adds explicit pool configuration, optional health check and optional metrics. Transportation continues RESP2/Jedis, with a command-borrowed connection and no automatic repetition of writes. No C++ server changes are required.
 
-## Conexão e pool
+## Connections and pooling
 
 ```yaml
 datadam:
@@ -24,35 +24,35 @@ datadam:
     eviction-interval: 30s
 ```
 
-| Propriedade | Padrão | Efeito |
+| Ownership | Standard | Effect |
 |---|---|---|
-| `datadam.timeout` | 5s | Padrão compatível usado pelos três limites abaixo quando não informados |
-| `datadam.connect-timeout` | `timeout` | Timeout de conexão Jedis |
-| `datadam.read-timeout` | `timeout` | Timeout de leitura do socket |
-| `datadam.pool.max-wait` | `timeout` | Limite de espera por uma conexão disponível quando o pool está esgotado |
-| `datadam.pool.max-total` | 8 | Máximo de conexões |
-| `datadam.pool.max-idle` | 8 | Máximo de conexões ociosas mantidas ao retornar ao pool |
-| `datadam.pool.min-idle` | 0 | Mínimo desejado de conexões ociosas, mantido pelo ciclo de manutenção quando habilitado |
-| `datadam.pool.block-when-exhausted` | true | Espera até max-wait; false falha imediatamente se não houver conexão/criação disponível |
-| `datadam.validate-connection` | true | Valida com PING antes de entregar cada conexão |
-| `datadam.pool.test-while-idle` | false | Valida conexões ociosas no ciclo de manutenção |
-| `datadam.pool.eviction-interval` | 0, desativado | Intervalo do ciclo de manutenção/evicção |
+| `datadam.timeout` | 5s | Compatible pattern used by the three limits below when not reported |
+| `datadam.connect-timeout` | `timeout` | Jedis Connection Timeout |
+| `datadam.read-timeout` | `timeout` | socket reading timeout |
+| `datadam.pool.max-wait` | `timeout` | Waiting limit for a connection available when pool is sold out |
+| `datadam.pool.max-total` | 8 | Maximum connection |
+| `datadam.pool.max-idle` | 8 | Maximum of idle connections maintained when returning to the pool |
+| `datadam.pool.min-idle` | 0 | Desired minimum of idle connections, maintained by the maintenance cycle when enabled |
+| `datadam.pool.block-when-exhausted` | True. | Wait until max-wait. False fails immediately if no connection/creation is available |
+| `datadam.validate-connection` | True. | Valid with PING before delivering each connection |
+| `datadam.pool.test-while-idle` | false | Valid idle connections in the maintenance cycle |
+| `datadam.pool.eviction-interval` | 0, deactivated | Maintenance/Eviction cycle interval |
 
-Os limites de conexão, leitura e espera aceitam de 1 ms a 2.147.483.647 ms. Zero, valores negativos, submilissegundo e overflow são recusados na criação do pool automático. Exige-se `max-total >= 1` e `0 <= min-idle <= max-idle <= max-total`; ao reduzir max-total abaixo de 8, ajuste também max-idle. Eviction-interval aceita zero para desativar ou um intervalo positivo no mesmo limite.
+The limits of connection, reading and waiting accept from 1 ms to 2.147.483.647 ms. Zero, negative values, submillissegundo and overflow are refused in the creation of the automatic pool. Requires `max-total >= 1` and `0 <= min-idle <= max-idle <= max-total`. By reducing max-total below 8, also max-idle. Eviction-interval accepts zero to disable or a positive interval at the same limit.
 
-Min-idle não abre conexões durante o startup por si só e não é uma reserva exclusiva para health. Com eviction-interval zero não há manutenção periódica, mesmo que test-while-idle/min-idle estejam configurados. As demais regras de evicção seguem o Commons Pool; o tempo mínimo padrão para evicção por ociosidade não é alterado pela biblioteca.
+Min-idle does not open connections during the startup itself and is not an exclusive health reserve. With eviction-interval zero there is no periodic maintenance, even if test-while-idle/min-idle are configured. The other eviction rules follow the Commons Pool. The standard minimum time for eviction due to idleness is not changed by the library.
 
-Max-wait limita a espera do pool, não funciona como prazo único de toda a operação. Criação da conexão, autenticação, validação PING, leitura da resposta e execução de uma operação de repositório podem adicionar tempo. Um método que emite vários comandos, como Page IDX, pode consumir vários desses limites. Defina o prazo da requisição da aplicação considerando esse comportamento.
+Max-wait limits the waiting of the pool, does not work as a single time of the entire operation. Creating the connection, authentication, validation PING, reading the response and running a repository operation can add time. A method that emits several commands, such as Page IDX, can consume several of these limits. Set the time limit of application request considering this behavior.
 
-Validate-connection acrescenta uma ida e volta por empréstimo. O pool automático usa uma validação de endpoint estático que descarta conexões desconectadas ou com PING inválido sem registrar a exceção do servidor. Isso preserva o descarte de conexões antigas após reinício, sem o WARN detalhado da validação padrão do Jedis. Falhas de aquisição, inclusive esgotamento, são traduzidas para `DataAccessResourceFailureException`; autenticação identificada na aquisição usa `PermissionDeniedDataAccessException` com mensagem genérica.
+Validate-connection adds one go and one return per loan. The automatic pool uses a static endpoint validation that discards disconnected or invalid PING connections without registering the server exception. This preserves the discard of old connections after restarting, without the WARN detail of the Jedis standard validation. Acquisition faults, including exhaustion, are translated into `DataAccessResourceFailureException`. Authentication identified in the acquisition uses `PermissionDeniedDataAccessException` with generic message.
 
-É possível substituir o bean `datadamPool`. Nesse caso, a criação, validação e os limites desse pool pertencem à aplicação; as propriedades não reconfiguram um pool externo. Apenas database 0 continua sendo usado pelo pool automático. A configuração gera metadados Spring para conclusão no IDE, com o annotation processor configurado explicitamente para compilações com JDK recente.
+It is possible to replace the bean `datadamPool`. In this case, the creation, validation and limits of this pool belong to the application. The properties do not reconfigure an external pool. Only database 0 continues to be used by the automatic pool. The configuration generates Spring metadata for completion in IDE, with the annotation processor explicitly configured for compilations with JDK recent.
 
-Com `datadam.ssl=true`, o pool automático valida também a identidade do endpoint TLS. Confiança da CA, SAN/nome/IP, validade dos certificados e cenários de falha de transporte são cobertos em [falhas e segurança](failures-and-security.md).
+With `datadam.ssl=true`, the automatic pool also validates the identity of the endpoint TLS. CA's trust, SAN/name/IP, validity of certificates and transport failure scenarios are covered in [faults and safety](failures-and-security.md).
 
-## Health opcional
+## Optional health indicator
 
-A biblioteca declara Spring Boot Actuator como dependência opcional. A aplicação consumidora que quiser o endpoint pode adicionar:
+The library declares Spring Boot Actuator as optional dependency. The consumer application you want the endpoint can add:
 
 ```xml
 <dependency>
@@ -76,17 +76,17 @@ management:
       show-components: never
 ```
 
-`datadam.health.enabled` é **false por padrão**, mesmo com Actuator presente. Quando habilitado e com as classes disponíveis, registra `datadamHealthIndicator`; um bean com esse nome substitui o padrão. O componente Actuator chama-se `datadam`.
+`datadam.health.enabled` is **false by default**, even with Actuator present. When enabled and with available classes, records `datadamHealthIndicator`. A bean with that name replaces the pattern. The Actuator component is called `datadam`.
 
-O indicador emite PING por `DatadamCommands`, no mesmo pool e com os mesmos limites da aplicação. Não cria outro pool nem abre uma conexão privilegiada. Precisa de permissão PING/conexão do usuário configurado; não precisa de INFO, leitura de documentos ou DDL. UP significa somente que PING respondeu PONG usando esse caminho; não comprova que índices estão READY, que queries estão autorizadas ou que uma migração está pronta.
+The indicator emits PING by `DatadamCommands`, in the same pool and with the same limits of application. It does not create another pool or open a privileged connection. It needs permission PING/connection of the configured user. It does not need INFO, reading documents or DDL. UP only means that PING answered PONG using this path. It does not prove that indexes are READY, that you want to be authorized or that a migration is ready.
 
-Em falha, devolve DOWN com no máximo uma categoria fixa em `reason`: `permission`, `connection_or_pool`, `command` ou `unexpected_response`. Não associa a exceção ao objeto Health nem registra sua stack trace. Mesmo que a aplicação habilite detalhes de health, a contribuição da biblioteca não fornece endereço, usuário, senha, resposta PING inesperada ou mensagem do servidor. Não há coleta periódica própria: cada invocação do indicador faz uma verificação. Com validate-connection ligado, há o PING da validação e o PING explícito do health.
+In failure, it returns DOWN with a maximum fixed category in `reason`: `permission`, `connection_or_pool`, `command` or `unexpected_response`. It does not associate the exception to the Health object or record its stack trace. Even if the application enables health details, the library contribution does not provide address, user, password, unexpected response PING or server message. There is no periodic collection of its own: each indicator invocation makes a check. With validation-connection connected, there is the PING validation and the PING explicit health.
 
-O health compartilha a pressão do pool: se todas as conexões estiverem ocupadas, ele pode ficar DOWN após a espera configurada. Isso não implica necessariamente que o processo Datadam caiu. A decisão de usar esse componente em grupos de readiness/liveness pertence à aplicação.
+The health shares the pool pressure: if all connections are busy, it can stay DOWN after the configured wait. This does not necessarily imply that the Datadam process has fallen. The decision to use this component in readiness/liveness groups belongs to the application.
 
-## Métricas opcionais
+## Optional metrics
 
-Micrometer Core também é uma dependência opcional. A configuração automática só registra `DatadamMetrics` se houver `MeterRegistry` e `datadam.metrics.enabled=true`; a biblioteca não cria registry, exporter ou endpoint de métricas. O starter Actuator da demonstração fornece a infraestrutura necessária.
+Micrometer Core is also an optional dependency. The automatic configuration only records `DatadamMetrics` if there are `MeterRegistry` and `datadam.metrics.enabled=true`. The library does not create register, export or endpoint metrics. The demonstration starter Actuator provides the necessary infrastructure.
 
 ```yaml
 datadam:
@@ -94,24 +94,24 @@ datadam:
     enabled: true
 ```
 
-| Meter | Tipo | Tags | Significado |
+| Enter | Type | Tags | Meaning |
 |---|---|---|---|
-| `datadam.command.duration` | Timer | command, outcome | Tempo de um comando do transporte, incluindo aquisição/validação, resposta, conversão RESP e devolução da conexão |
-| `datadam.command.errors` | Counter | command, outcome | Chamadas que falharam; não há série de erro para sucesso |
-| `datadam.pool.acquire` | Timer | outcome=success/failure | Aquisição, incluindo criação/validação; success indica que houve conexão, mesmo se o comando falhar depois |
-| `datadam.pool.connections` | Gauge | state=active/idle | Conexões emprestadas e ociosas |
-| `datadam.pool.waiters` | Gauge | nenhuma | Threads esperando conexão |
-| `datadam.pool.max` | Gauge | nenhuma | Máximo de conexões configurado |
+| `datadam.command.duration` | Time | command, output | Transport control time, including acquisition/validation, response, conversion RESP and return of connection |
+| `datadam.command.errors` | Counter | command, output | Calls that failed. No series of errors for success |
+| `datadam.pool.acquire` | Time | output=success/failure | Acquisition, including creation/validation. Success indicates connection, even if command fails later |
+| `datadam.pool.connections` | Gauge | state=active/idle | Borrowed and idle connections |
+| `datadam.pool.waiters` | Gauge | none | Threads waiting for connection |
+| `datadam.pool.max` | Gauge | none | Maximum connections configured |
 
-Timers fornecem contagem e duração acumulada; unidades de exportação seguem o registry. Histogramas/percentis não são habilitados pela biblioteca. Podem ser configurados pela aplicação com os recursos Micrometer/Actuator.
+Timers provide counting and cumulative duration. Export units follow the registry. Histograms/percentages are not enabled by the library. They can be configured by the application with Micrometer/Actuator resources.
 
-`outcome` do comando pertence ao conjunto fechado `success`, `permission_error`, `duplicate_key`, `command_error`, `connection_error`, `pool_error`, `client_error`. São classificações operacionais, não prova de que uma escrita foi aplicada ou desfeita. Um erro de conexão após envio pode deixar resultado incerto; a instrumentação não autoriza repetição automática.
+`outcome` of the command belongs to the closed set `success`, `permission_error`, `duplicate_key`, `command_error`, `connection_error`, `pool_error`, `client_error`. These are operational classifications, not proof that a writing has been applied or undone. A connection error after shipment may result in uncertainty. The instrumentation does not allow automatic repetition.
 
-`command` vem de uma enumeração dos comandos conhecidos pela biblioteca, como JSON.GET, HREPLACE, IDX.QUERY e FT.SEARCH. Nomes desconhecidos são agrupados em OTHER. Não são usados nomes de índices, propriedades de entidades, chaves, filtros, valores, caminhos, host/port, usuário, credenciais ou mensagem/classe dinâmica da exceção como tags. Assim, argumentos e comandos desconhecidos não ampliam a cardinalidade das séries.
+`command` comes from a list of commands known by the library, such as JSON.GET, HREPLACE, IDX.QUERY and FT.SEARCH Unknown names are grouped into OTHER. Index names, entity properties, keys, filters, values, paths, host/port, user, credentials or dynamic message/class of the exception are not used as tags. Thus, unknown arguments and commands do not extend the cardinality of the series.
 
-O health explícito entra como PING nos timers. PINGs internos da validação do Jedis não geram um evento próprio; seu tempo está incluído na aquisição. Comandos internos a um EVAL não são observados individualmente, somente o EVAL enviado. A serialização da entidade antes de chamar o transporte e a duração completa do método de repositório não pertencem ao timer.
+The explicit health enters as PING timesrs. Internal Jedis validation PINGs do not generate an event of their own. Their time is included in the acquisition. Internal commands to a EVAL are not observed individually, only the EVAL sent. The entity serialization before calling the transport and the full duration of the repository method do not belong to the timer.
 
-## Uso manual e extensões
+## Manual configuration and extensions
 
 ```java
 var metrics = new DatadamMetrics(registry, pool);
@@ -119,17 +119,17 @@ var commands = new DatadamCommands(pool, metrics);
 var health = new DatadamHealthIndicator(commands);
 ```
 
-O construtor existente `new DatadamCommands(pool)` mantém observação desativada. Para um transport bean personalizado, passe o observador ao construí-lo; a configuração não envolve automaticamente um `DatadamCommands` fornecido pela aplicação.
+The existing constructor `new DatadamCommands(pool)` keeps observation disabled. For a custom bean transport, pass the observer when building it. The configuration does not automatically involve a `DatadamCommands` supplied by the application.
 
-Um bean `DatadamCommandObserver` substitui a integração Micrometer padrão. Ele recebe `CommandObservation` com operação/outcome enumerados, durações e indicador de aquisição, sem argumentos nem Throwable. Falhas RuntimeException do observador são ignoradas sem logging e não substituem o retorno nem a exceção original do comando. Erros fatais da JVM não são suprimidos.
+A bean `DatadamCommandObserver` replaces the default Micrometer integration. It receives `CommandObservation` with listed operation/outcome, durations and acquisition indicator, without arguments or Throwable. RuntimeException faults of the observer are ignored without logging and do not replace the original return or exception of the command. Fatal errors of JVM are not deleted.
 
-A configuração automática representa um único pool `datadamPool` e um registry resolvido pelo Spring. A criação manual de vários instrumentos com os mesmos nomes no mesmo registry pode compartilhar séries/gauges; use integração própria ao instrumentar vários pools. Sem Actuator/Micrometer no classpath, o transporte e os repositórios continuam disponíveis, inclusive se os flags de diagnóstico estiverem ligados.
+The automatic configuration represents a single pool `datadamPool` and a registry solved by Spring. The manual creation of several instruments with the same names in the same registry can share series/gauges. Use its own integration when instrumenting several pools. Without Actuator/Micrometer in the classpath, transport and repositories remain available, including if diagnostic flags are connected.
 
-## Logs, dados sensíveis e exemplo local
+## Logs, sensitive data, and local example
 
-A biblioteca não registra argumentos, credenciais ou exceções de comandos nos diagnósticos operacionais. O health e os meters são sanitizados também no caminho de erro. As exceções normais de operações continuam preservando causas e mensagens úteis do servidor, que podem conter chaves/valores; registrá-las ou devolvê-las em uma API é uma decisão da aplicação. Logs DEBUG/TRACE de dependências, exporters, observadores e endpoints adicionais configurados pelo consumidor exigem sua própria política de dados.
+The library does not record arguments, credentials or command exceptions in operational diagnoses. Health and meters are also sanitized on the path of error. Normal exceptions to operations continue to preserve useful causes and messages from the server, which may contain keys/values. Registering them or returning them in a API is an application decision. Logs DEBUG/TRACE of dependencies, exporters, observers and additional consumer-configured endpoints require their own data policy.
 
-A demonstração liga health e métricas e expõe somente esses dois endpoints Actuator, no mesmo bind local `127.0.0.1` da aplicação. Não expõe env, configprops, loggers ou heapdump e mantém detalhes/componentes de health ocultos. Habilitar o recurso na biblioteca não publica endpoints por conta própria; exposição depende do Actuator da aplicação.
+The demonstration links health and metrics and exposes only these two Actuator endpoints in the same `127.0.0.1` local blind application. It does not expose env, configprops, loggers or heapdump and keeps details/health components hidden. Enable the resource in the library does not publish endpoints on its own. Exposure depends on the Actuator of the application.
 
 ```powershell
 Invoke-RestMethod 'http://127.0.0.1:8080/actuator/health'
@@ -138,6 +138,6 @@ Invoke-RestMethod 'http://127.0.0.1:8080/actuator/metrics/datadam.command.durati
 Invoke-RestMethod 'http://127.0.0.1:8080/actuator/metrics/datadam.command.errors'
 ```
 
-A série de erros aparece após a primeira falha observada; se ainda não houve erros, o endpoint específico pode não encontrá-la. Os testes unitários verificam classpath opcional, opt-in, substituição de beans, limites, instrumentação, cardinalidade e ausência de mensagens sensíveis em health/logs. `LibraryDiagnosticsIntegrationIT` valida Actuator e meters no Docker, comandos JSON/HASH, falhas nativas, credenciais incorretas e esgotamento controlado de um pool próprio com recuperação. Execute `scripts/run-local.ps1 -Restart -IntegrationTests -Background`.
+The series of errors appears after the first observed failure. If there were no errors yet, the specific endpoint may not find it. Unit tests check optional classpath, opt-in, replacement of beans, limits, instrumentation, cardinality and absence of sensitive messages in health/logs. `LibraryDiagnosticsIntegrationIT` valid Actuator and meters in Docker, commands JSON/HASH, native failures, incorrect credentials and controlled exhaustion of a own pool with recovery. Execute `scripts/run-local.ps1 -Restart -IntegrationTests -Background`.
 
-Referências: [Spring Boot 3.5 Actuator](https://docs.spring.io/spring-boot/3.5/reference/actuator/endpoints.html), [Micrometer Timers](https://docs.micrometer.io/micrometer/reference/concepts/timers.html) e [Commons Pool](https://commons.apache.org/proper/commons-pool/apidocs/org/apache/commons/pool2/impl/GenericObjectPoolConfig.html).
+References: [Spring Boot 3.5 Actuator](https://docs.spring.io/spring-boot/3.5/reference/actuator/endpoints.html), [Micrometer Timers](https://docs.micrometer.io/micrometer/reference/concepts/timers.html) and [Common Pool](https://commons.apache.org/proper/commons-pool/apidocs/org/apache/commons/pool2/impl/GenericObjectPoolConfig.html).

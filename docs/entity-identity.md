@@ -1,8 +1,8 @@
-# IDs e identificação de entidades novas
+# IDs and new entity detection
 
-O item 1.2 adiciona geração opcional de IDs e detecção local de entidade nova. IDs informados pela aplicação continuam sendo preservados.
+Item 1.2 adds optional generation of IDs and local detection of new entity. Application-informed IDs continue to be preserved.
 
-## Ativar a geração
+## Enable ID generation
 
 ```java
 @DatadamDocument(prefix = "note:")
@@ -10,57 +10,57 @@ public record Note(@Id @DatadamGeneratedId String id, String text) {}
 
 Note input = new Note(null, "rascunho");
 Note saved = repository.save(input);
-// saved.id() contém um UUID; input.id() continua null.
+// saved.id() contains a UUID; input.id() continues null.
 ```
 
-`@DatadamGeneratedId` deve estar no mesmo campo que `@Id`. O gerador padrão usa UUID aleatório e aceita `String` ou `java.util.UUID`. O tipo UUID é preservado ao ler a entidade novamente. A chave continua sendo `prefix + id.toString()`.
+`@DatadamGeneratedId` must be in the same field as `@Id`. The standard generator uses UUID randomly and accepts `String` or `java.util.UUID`. Type UUID is preserved when reading the entity again. The key remains `prefix + id.toString()`.
 
-Sempre use o retorno de `save` e `saveAll`. Para records, a biblioteca chama o construtor canônico com o ID gerado e os valores dos demais componentes. Esse construtor precisa aceitar o novo ID sem transformá-lo; a biblioteca recusa uma transformação que faria o ID retornado divergir da chave. Outros construtores imutáveis, builders e métodos wither ainda não são usados.
+Always use the return of `save` and `saveAll`. For records, the library calls the canonical constructor with the generated ID and the values of the other components. This constructor needs to accept the new ID without transforming it. The library refuses a transformation that would make the returned ID diverge from the key. Other immutable constructors, builders and wither methods are not yet used.
 
-Para classes mutáveis, o campo ID deve ser gravável e fazer parte do JSON serializado. Após sucesso, a instância efetivamente salva recebe o ID e é retornada. Sem substituição por callbacks, ela é a mesma instância de entrada. Um ID final em uma classe que não é record não suporta geração. Os nomes JSON de Jackson, inclusive `@JsonProperty` e naming strategy, são respeitados.
+For mutable classes, the ID field must be writable and included in serialized JSON. A successful save populates the ID on the instance it returns. This is the original instance unless a callback replaces it. A final ID field in a non-record class does not support ID generation. The library respects Jackson's JSON names, including `@JsonProperty` and the configured naming strategy.
 
-Sem a anotação de geração, a aplicação continua responsável por informar um ID válido antes de salvar. Um ID existente nunca é substituído pelo gerador, mesmo que o campo tenha a anotação.
+Without generation annotation, the application remains responsible for informing a valid ID before saving. An existing ID is never replaced by the generator, even if the field has annotation.
 
-## Como a entidade nova é identificada
+## How the library detects new entities
 
-O módulo expõe a mesma decisão em `EntityModel.isNew` e no `EntityInformation` usado pelo Spring Data. A inspeção segue as [estratégias de estado do Spring Data](https://docs.spring.io/spring-data/commons/reference/is-new-state-detection.html), com String em branco também tratada como ID ausente.
+The module displays the same decision in `EntityModel.isNew` and `EntityInformation` used by Spring Data. The inspection follows the [Spring Data state strategies](https://docs.spring.io/spring-data/commons/reference/is-new-state-detection.html), with blank string also treated as missing ID.
 
-| Entidade/ID | Decisão local |
+| Entity/ID | Local decision |
 |---|---|
-| Implementa `Persistable` | Usa `Persistable.isNew()` |
-| Tem `@Version` wrapper null, sem Persistable | Nova, mesmo com ID atribuído |
-| Tem `@Version` primitivo zero, sem Persistable | Nova, mesmo com ID atribuído |
-| Tem `@Version` válido e já persistido, sem Persistable | Não nova |
-| ID null | Nova |
-| ID String vazio ou somente espaços | Nova |
-| ID numérico primitivo igual a zero | Nova |
-| ID numérico wrapper igual a zero | Não nova: zero é um valor atribuído |
-| Demais IDs presentes | Não nova |
+| Implementation `Persistable` | Use `Persistable.isNew()` |
+| There is `@Version` wrapper null, no Persistible | New, even with assigned ID |
+| It has `@Version` primitive zero, without Persistable | New, even with assigned ID |
+| It has `@Version` valid and already persisted, without Persistable | Not new |
+| Invalid ID | New |
+| Empty string ID or spaces only | New |
+| Primitive numeric ID equal to zero | New |
+| Numerical wrapper ID equal to zero | Not new: zero is an assigned value |
+| Too many IDs present | Not new |
 
-Essa decisão não consulta o Datadam e não comprova que a chave existe. Uma entidade com ID atribuído pode ainda não estar no banco. Sem @Version, implemente `Persistable` para distinguir explicitamente esse caso.
+This decision does not consult Datadam and does not prove that the key exists. An entity with assigned ID may not yet be in the bank. Without @Version, implement `Persistable` to explicitly distinguish this case.
 
-Desde o item 2.1, `@Version` participa antes da inspeção do ID. Com Persistable, as duas decisões precisam concordar. A auditoria e os callbacks usam essa mesma decisão local; consulte [concorrência com @Version](optimistic-locking.md) e [auditoria e callbacks](auditing-and-callbacks.md).
+Since the item 2.1, `@Version` participates before the ID inspection. With Persistable, the two decisions need to agree. The audit and the callbacks use the same local decision. See [optimistic locking with @Version](optimistic-locking.md) and [audit and callbacks](auditing-and-callbacks.md).
 
-### Política de gravação
+### Write policy
 
-A tabela abaixo se aplica a entidades **sem @Version**. Entidades versionadas sempre usam criação exclusiva ou atualização condicionada à versão persistida, conforme o documento de concorrência.
+The table below applies to entities **without @Version**. Entities versioned always use exclusive creation or update conditioned to the persistent version, according to the competition document.
 
-| Caso | Comportamento |
+| Case | Behaviour |
 |---|---|
-| ID ausente e geração ativada | Gera e tenta criar com `JSON.SET ... NX` |
-| ID já informado, entidade comum | Mantém o comportamento anterior: save cria ou substitui a chave |
-| `Persistable.isNew() == true`, ID informado | Tenta somente criar, usando NX |
-| `Persistable.isNew() == false`, ID informado | Permite criar ou substituir, como save normal |
-| `Persistable.isNew() == false`, ID ausente com geração ativada | Recusa por estado inconsistente antes de gravar |
-| ID ausente, geração desativada | Null/String em branco são recusados; não há geração implícita |
+| Missing ID and Enabled Generation | Generate and try to create with `JSON.SET ... NX` |
+| ID already informed, common entity | Maintains previous behavior: save creates or replaces the key |
+| `Persistable.isNew() == true`, informed ID | Just try to create, using NX |
+| `Persistable.isNew() == false`, informed ID | Allows to create or replace, as normal save |
+| `Persistable.isNew() == false`, missing ID with activated generation | Unconsistent state objection before recording |
+| ID missing, generation disabled | Null/String blank are refused. There is no implicit generation |
 
-Para compatibilidade, um ID numérico primitivo zero sem geração continua podendo ser salvo como chave terminada em `0`; a decisão local de estado não altera esse save para inserção exclusiva. Com geração ativada, zero primitivo é o valor ausente que solicita geração. Prefira wrappers quando precisar representar a ausência explicitamente e aceitar zero como ID atribuído.
+For compatibility, a zero primitive numeric ID without generation can continue to be saved as a completed key in `0`. The local state decision does not alter this save for exclusive insertion. With generated, zero primitive is the missing value that requires generation. It prefers wrappers when you need to represent absence explicitly and accept zero as assigned ID.
 
-Se você usa `Persistable`, mantenha `getId()` coerente com o campo `@Id`. Controle também a mudança do indicador de novo para existente: este item não muda flags arbitrárias da aplicação. Por exemplo, uma flag de nova entidade pode ser ignorada no JSON e assumir false ao carregar. Salvar repetidamente a mesma instância que continua retornando true tentará inserir novamente e poderá resultar em conflito.
+If you use `Persistable`, keep `getId()` consistent with the `@Id` field. Also control the change from the indicator again to existing: this item does not change arbitrary flags of the application. For example, a new entity flag can be ignored in JSON and assume false when loading. Repeatly save the same instance that continues to return true will try to insert again and may result in conflict.
 
-## Geradores personalizados
+## Custom generators
 
-Registre um bean que implemente `DatadamIdGenerator` e informe seu nome na anotação:
+Register a bean that implements `DatadamIdGenerator` and inform its name in the annotation:
 
 ```java
 @Configuration
@@ -78,15 +78,15 @@ public record Document(
 ) {}
 ```
 
-O contexto informa `entityType`, `idType` e `keyPrefix`. Não é necessário acessar o servidor nem modificar a entidade para gerar o valor. Geradores compartilhados por beans precisam ser seguros para uso concorrente.
+The context reports `entityType`, `idType` and `keyPrefix`. It is not necessary to access the server or modify the entity to generate the value. Beans-shared generators need to be safe for concurrent use.
 
-Além de String e UUID, geradores personalizados podem produzir Byte, Short, Integer, Long e seus primitivos. O valor precisa ter o tipo correspondente: a biblioteca não converte silenciosamente Integer para Long, por exemplo. Null, String em branco e zero para ID primitivo são recusados. Wrapper numérico zero é aceito como valor presente.
+In addition to String and UUID, custom generators can produce Byte, Short, Integer, Long and its primitives. The value needs to have the corresponding type: the library does not silently convert Integer to Long, for example. Null, String in blank and zero to primitive ID are refused. Zero numeric wrapper is accepted as present value.
 
-O método opcional `validate(context)` permite recusar tipos/configurações durante a criação do repositório. Ele também é executado antes de saves diretos pelo template e deve limitar-se à validação de metadados. Um nome de gerador inexistente ou um tipo incompatível com o gerador UUID impede a criação do repositório.
+The optional method `validate(context)` allows you to refuse types/configurations while creating the repository. It is also executed before direct saves by the template and should be limited to validation of metadata. A non-existent generator name or a type incompatible with the generator UUID prevents the creation of the repository.
 
-O bean `datadamIdGenerator` é o padrão para anotações sem nome de gerador. Você pode substituí-lo por um bean com esse nome. A implementação substituta deve suportar os tipos usados pelas entidades que dependem dela ou delegar os demais casos ao `UuidDatadamIdGenerator`.
+Bean `datadamIdGenerator` is the default for notes without a generator name. You can replace it with a bean with that name. The replacement implementation must support the types used by entities that depend on it or delegate the other cases to `UuidDatadamIdGenerator`.
 
-Fora do Spring, o construtor de dois argumentos do template fornece o gerador UUID. Para estratégias próprias, forneça o mapa completo dos geradores necessários:
+Outside Spring, the template's two argument builder provides the generator UUID. For own strategies, provide the complete map of the required generators:
 
 ```java
 var template = new DatadamTemplate(commands, mapper, Map.of(
@@ -95,23 +95,23 @@ var template = new DatadamTemplate(commands, mapper, Map.of(
 ));
 ```
 
-O projeto não inclui uma sequência numérica distribuída pronta. Um gerador numérico precisa definir sua própria unicidade e coordenação; um contador em memória não garante isso entre processos ou reinícios.
+The project does not include a distributed numerical sequence ready. A numerical generator needs to define its own uniqueness and coordination. A memory counter does not guarantee this between processes or restarts.
 
-## Colisões, TTL e falhas
+## Collisions, TTL, and failures
 
-A criação com ID gerado usa NX para que uma colisão não sobrescreva um documento existente. Colisão de ID em documento JSON resulta em `DuplicateKeyException`; não há geração automática de outro ID nem repetição da operação. Uma chave existente de tipo incompatível pode ser recusada com erro de tipo pelo servidor, preservando seu conteúdo.
+Creation with generated ID uses NX so that a collision does not overwrite an existing document. Document ID collision JSON results in `DuplicateKeyException`. There is no automatic generation of another ID or repeat of the operation. An incompatible type of existing key can be rejected with type error by the server, preserving its content.
 
-Com TTL positivo, o script do item 1.1 também usa NX. Se a chave já existir, o script termina sem renovar seu prazo. Conflitos de índice UNIQUE e recusas de ACL continuam preservando o documento e a expiração nos casos documentados.
+With TTL positive, the script of the item 1.1 also uses NX. If the key already exists, the script ends without renewing its term. Index conflicts UNIQUE and refusals of ACL continue to preserve the document and expiration in documented cases.
 
-O ID só é aplicado à entrada mutável depois que a gravação responde com sucesso. Falhas de validação, colisão, UNIQUE, ACL ou transporte não preenchem esse campo. Em records, a entrada nunca muda. Um gerador pode ter consumido um valor antes de uma falha; valores não são devolvidos nem reaproveitados automaticamente.
+The ID is only applied to the moving input after the recording responds successfully. Validation faults, collision, UNIQUE, ACL or transport do not fill this field. In records, the input never changes. A generator may have consumed a value before a failure. Values are not returned or reused automatically.
 
-Falha de transporte é um resultado incerto: o servidor pode ter aplicado a gravação sem a resposta chegar. O chamador não recebe uma entidade salva nessa situação, e a biblioteca não repete a operação automaticamente. Se o ID foi gerado nessa tentativa, ele não foi aplicado à entrada. Para fluxos que exijam reconciliação por chave conhecida, atribua o ID na aplicação ou mantenha uma referência de negócio consultável. Não considere um novo save de uma entrada sem ID uma repetição idempotente.
+Transport failure is an uncertain result: the server may have applied the recording without the response arriving. The caller does not receive a saved entity in this situation, and the library does not repeat the operation automatically. If the ID was generated in this attempt, it was not applied to the input. For streams that require reconciliation by known key, assign the ID in the application or keep a queryable business reference. Do not consider a new save from an input without ID an identical repetition.
 
-`saveAll` continua sequencial e pode ter êxito parcial. O resultado bem-sucedido contém todas as entidades com seus IDs. Se ocorrer falha no meio, não há rollback do lote nem retorno de sua lista parcial; em records, referências de negócio ajudam a localizar itens já gravados. Os limites de durabilidade de documento + TTL após crash com UNIQUE permanecem os descritos em [TTL de entidades](entity-ttl.md).
+`saveAll` remains sequential and may have partial success. The successful result contains all entities with their IDs. If it occurs failure in the middle, there is no batch rollback or return of your partial list. In records, business references help to locate already recorded items. Document durability limits + TTL after crash with UNIQUE remain those described in [TTL of entities](entity-ttl.md).
 
-## Exemplo HTTP
+## HTTP example
 
-`TemporaryNote` agora aceita POST sem ID, combinando geração UUID, TTL e índices nativos:
+`TemporaryNote` now accepts POST without ID, combining generation UUID, TTL and native indices:
 
 ```powershell
 $noteData = @{
@@ -125,8 +125,8 @@ $saved.id
 Invoke-RestMethod "http://127.0.0.1:8080/temporary-notes/$($saved.id)"
 ```
 
-O endpoint continua aceitando um ID informado explicitamente. Os índices não precisam de migração para ativar a geração: o formato da chave e dos documentos existentes permanece o mesmo.
+The endpoint continues to accept an explicitly informed ID. Indexes do not need migration to activate the generation: the format of the key and existing documents remains the same.
 
-## Validação
+## Validation
 
-`EntityIdentityTest` cobre a política de estado e geração, tipos, JSON, configuração Spring e falhas sem transporte. `EntityIdentityIntegrationIT` usa Datadam real para CRUD, registros imutáveis, classes mutáveis, IDs personalizados, saveAll, colisões com e sem TTL, UNIQUE, ACL, concorrência e HTTP.
+`EntityIdentityTest` covers the policy of state and generation, types, JSON, Spring configuration and faults without transport. `EntityIdentityIntegrationIT` uses Real Datadam for CRUD, immutable records, changeable classes, custom IDs, saveAll, collisions with and without TTL, UNIQUE, ACL, competition and HTTP.

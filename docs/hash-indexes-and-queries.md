@@ -1,6 +1,6 @@
-# Índices e consultas HASH
+# HASH indexes and queries
 
-O item 4.2 adiciona schema e consultas IDX/FT para entidades com `storage = DatadamStorage.HASH`. As mesmas APIs de repositório retornam entidades completas a partir dos campos nativos da resposta, sem buscar cada documento novamente por HGETALL.
+The item 4.2 adds schema and queries IDX/FT for entities with `storage = DatadamStorage.HASH`. The same repository APIs return complete entities from the native fields of the response, without searching each document again for HGETALL.
 
 ```java
 @DatadamDocument(prefix = "customer:hash:", storage = DatadamStorage.HASH)
@@ -14,35 +14,35 @@ O item 4.2 adiciona schema e consultas IDX/FT para entidades com `storage = Data
 public record Customer(@Id String id, String city, Integer age, String labels) {}
 ```
 
-## Campos, aliases e schema
+## Fields, aliases, and schema
 
-Para HASH, path é o **nome literal do campo armazenado**, não JSONPath. Uma propriedade Java renomeada com `@JsonProperty("home_city")` deve ser declarada com `path = "home_city"`. Objetos aninhados/coleções do [mapeamento HASH](hash-entities.md) ficam como JSON dentro de um campo: `address.city` não extrai automaticamente o membro city de um objeto address.
+For HASH, path is **literal name of the stored field**, not JSONPath. A Java property renamed with `@JsonProperty("home_city")` must be declared with `path = "home_city"`. Ringed objects/collections of [mapping HASH](hash-entities.md) are like JSON within a field: `address.city` does not automatically extract the city member from an address object.
 
-IDX HASH não aceita AS: alias deve ser igual a path. Essa limitação é validada antes do DDL. FT HASH aceita AS, e os aliases podem diferir dos nomes armazenados. No exemplo, a busca FT usa `@home` e a ordenação nativa usa `years`; a entidade retornada continua tendo city/age.
+IDX HASH does not accept AS: alias must be equal to path. This limitation is validated before DDL. FT HASH accepts AS, and aliases may differ from the names stored. In the example, the FT search uses `@home` and the native ordination uses `years`. The returned entity continues to have city/age.
 
-`ensureIndexes(Entity.class, timeout)` emite ON HASH ou ON JSON conforme o modelo. Continua usando conexão administrativa, criação idempotente, espera por backfill e validação explícita. Um índice existente com outro formato, prefixo, ordem/campos, UNIQUE, alias, modo de caixa ou separador gera DataIntegrityViolationException. Nenhum índice é removido ou recriado automaticamente. Informações de IDX.INFO e FT.INFO são combinadas para validar também o identificador real de um alias FT.
+`ensureIndexes(Entity.class, timeout)` issues ON HASH or ON JSON according to the model. It continues to use administrative connection, idempotent creation, waits for backfill and explicit validation. An existing index with another format, prefix, order/fields, UNIQUE alias, box mode or separator generates DataIntegrityViolationException. No index is removed or automatically recreated. Information from IDX.INFO and FT.INFO are combined to also validate the actual identifier of a FT alias.
 
-separator é uma nova opção de IndexField, disponível para TAG em HASH e JSON. String vazia usa o padrão do servidor; um valor explícito deve ser um único caractere ASCII diferente de NUL. NUMERIC com separador, caractere de vários bytes e CASESENSITIVE fora de TAG FT são recusados.
+separator is a new IndexField option, available for TAG in HASH and JSON. Empty string uses the server standard. An explicit value must be a single character ASCII different from NUL. NUMERIC with separator, multi-byte character and CASESENSITIVE outside TAG FT are refused.
 
-## Diferenças de valores indexados
+## Differences in indexed values
 
-| Aspecto | IDX HASH | FT HASH | JSON |
+| Appearance | IDX HASH | FT HASH | JSON |
 |---|---|---|---|
-| TAG padrão | Campo inteiro, sem trim, sensível à caixa | Tokens separados por vírgula, com trim e remoção de vazios/duplicados; caixa ASCII ignorada | Valores selecionados pelo caminho; sem separador padrão |
-| TAG com separator explícito | Tokens separados, com trim e remoção de vazios/duplicados | Mesmo procedimento, com o separador escolhido | Divide os valores string selecionados |
-| CASESENSITIVE | Sempre diferencia caixa | Opcional em TAG | IDX sempre diferencia; FT usa a opção |
-| Lista armazenada | O JSON da lista é texto de um campo HASH | O mesmo texto; não vira automaticamente um token por elemento | Arrays podem produzir um valor indexado por elemento |
-| Objeto armazenado | JSON do objeto é texto do campo | JSON do objeto é texto do campo | Objetos selecionados não são TAG/NUMERIC indexáveis |
-| NUMERIC | Texto do campo interpretado como número | Texto do campo interpretado como número | Valores numéricos selecionados pelo caminho |
-| Campo ausente/NUMERIC inválido | Ausência de qualquer componente exclui a chave do IDX composto | A chave pode continuar no índice/presença, sem o valor desse campo | Mesma regra de presença de IDX/FT, aplicada aos valores JSON |
+| TAG standard | Whole field, no trim, sensitive to the box | Tokens separated by comma, with trim and removal of voids/duplicates. Box ASCII ignored | Values selected by path. No standard separator |
+| TAG with explicit separator | Separate tokens, with trim and removal of voids/duplicates | Same procedure, with the chosen separator | Divide the selected string values |
+| CASESENSITIVE | Always difference box | Optional in TAG | IDX always difference; FT uses the option |
+| List stored | The JSON of the list is text of a field HASH | Same text. Does not automatically turn one token per element | Arrays can produce a value indexed by element |
+| Object stored | JSON object is field text | JSON object is field text | Selected objects are not TAG/NUMERIC indexable |
+| NUMERIC | Text of the field interpreted as number | Text of the field interpreted as number | Numerical values selected by path |
+| Field absent/NUMERIC invalid | Absence of any component excludes the IDX compound key | The key can continue in the index/presence, without the value of this field | Same rule of presence of IDX/FT applied to values JSON |
 
-Exemplo: cidade `Alpha,Beta` é um único valor no IDX sem separador, mas dois tokens no FT HASH padrão. Um filtro FT `@home:{Alpha}` pode encontrar essa chave; isso não equivale a city igual a `Alpha`.
+Example: city `Alpha,Beta` is a single value in IDX without separator, but two tokens in the standard FT HASH. A FT filter `@home:{Alpha}` can find this key. This does not amount to city equal to `Alpha`.
 
-Para labels, o exemplo usa um campo String separado por `;`. A propriedade tags é uma List armazenada como JSON pelo codec HASH; indexar esse campo não a transforma em uma lista nativa de TAGs. Escolha uma representação textual dedicada quando quiser os tokens HASH do servidor. Não concatene listas silenciosamente no codec, pois isso perderia tipos e ambiguidades de conversão.
+For labels, the example uses a String field separated by `;`. The tag property is a List stored as JSON by the codec HASH. Indexing that field does not make it a native TAG list. Choose a dedicated text representation when you want the server tokens HASH. Do not concatenate lists silently in the codec, as this would lose conversion types and ambiguities.
 
-Valores numéricos inválidos não viram zero nem são corrigidos pela biblioteca. Uma chave escrita externamente com age inválido pode aparecer na presença FT, mas falhar na materialização como Integer se a consulta selecionar esse documento completo. Consultas numéricas não incluem esse valor; LIMIT 0 permite obter totais sem materialização. Precisão/ordem numérica seguem o índice nativo do Datadam, sem avaliação numérica alternativa no cliente.
+Invalid numeric values have not been zeroed or corrected by the library. An externally written key with invalid age may appear in the FT presence, but fail in the materialization as Integer if the query selects this complete document. Numerical queries do not include this value; LIMIT 0 allows to obtain totals without materialization. Numerical accuracy/order follow the native index of Datadam, without alternative numerical evaluation in the client.
 
-## Consultas declaradas e programáticas
+## Declared and programmatic queries
 
 ```java
 public interface CustomerRepository extends DatadamRepository<Customer, String> {
@@ -62,35 +62,35 @@ repository.search("customers:search",
     PageRequest.of(0, 20));
 ```
 
-Condições IDX usam os nomes nativos dos campos/aliases; FT usa aliases do schema. A ordenação IDX segue a sequência dos campos do índice, com DESC em CompoundQuery; FT aceita o SORTBY nativo suportado, com um campo. Sort em consultas declaradas/programáticas FT também usa nomes do schema, como years. Parâmetros permanecem argumentos vinculados; filtros, faixas, contagens e ordenação são executados no servidor.
+Conditions IDX use the native names of the fields/aliases; FT uses aliases of the schema. The sorting IDX follows the sequence of the index fields, with DESC in CompoundQuery; FT accepts the SORTBY native supported, with a field. Sort in declared/programmatic queries FT also uses schema names, such as years. Parameters remain linked arguments. Filters, tracks, counts and sorting are executed on the server.
 
-A faixa da @IdxQuery acima exclui maximum por usar `<`; os dois extremos de `Between` derivado são inclusivos, assim como `[min max]` do FT. Esses contratos são iguais aos usados pelo exemplo JSON.
+The range of @IdxQuery above excludes maximum use `<`. The two ends of `Between` derivative are inclusive, as well as `[min max]` FT. These contracts are equal to those used by the example JSON.
 
-## Derivação de nomes
+## Query derivation
 
-Na entrega 5.2, `StartingWith` acrescenta prefixos do campo inteiro por IDX sem separador, inclusive vírgulas literais. `Not`/`NotIn` numéricos usam FT com presença explícita e excluem ausentes/null/inválidos. Prefixos escalares em TAG FT HASH continuam recusados por causa da divisão padrão em tokens. A [matriz de derivação](derived-queries.md) documenta semântica, limitações e exemplos em `/customer-queries/hash`.
+In delivery 5.2, `StartingWith` adds whole field prefixes by IDX without separator, including literal commas. `Not`/`NotIn` numerics use FT with explicit presence and exclude absent/null/invalid. Scalar prefixes in TAG FT HASH continue to be refused because of standard division in tokens. The [derivation matrix](derived-queries.md) semantic document, limitations and examples in `/customer-queries/hash`.
 
-As propriedades Java são resolvidas por Jackson para o campo HASH raiz; o planejador compara esse campo com os caminhos do schema e usa o alias nativo correspondente. Os operadores e retornos já suportados continuam disponíveis quando existe um plano semanticamente compatível: igualdade, faixas numéricas, count/exists, Optional/List/Page/Slice e Top/First no subconjunto documentado pela biblioteca.
+The Java properties are solved by Jackson for the root HASH field. The planner compares this field with the paths of the schema and uses the corresponding native alias. Operators and already supported returns remain available when there is a semantically compatible plan: equality, numeric tracks, count/exists, Optional/List/Page/Slice and Top/First in the subset documented by the library.
 
-O HashCustomerRepository demonstra igualdade/lookup de email UNIQUE, igualdade de cidade com faixa/ordem de idade por IDX, count, exists, Slice/Top e consulta somente numérica por FT. A ordenação derivada usa a propriedade Java age e a converte para o alias FT years quando esse for o plano escolhido.
+HashCustomerRepository demonstrates equality/email lookup UNIQUE, city equality with age range/order by IDX, count, existences, Slice/Top and only numerical query by FT. Derived ordination uses the Java age property and converts it to the alias FT years when that is the chosen plan.
 
-Para não mudar o significado de igualdade, o planejador **não usa TAGs com separação** para predicados escalares de igualdade/IN/IgnoreCase nem para ordenação escalar desse campo. Isso inclui o FT HASH com vírgula padrão, mesmo se CASESENSITIVE estiver ativado. Pode usar um IDX sem separador que cubra os predicados, ou recusar o método na criação do repositório se não existir plano correto. A mesma regra vale para um TAG JSON com separator explícito. Não há pós-filtragem em memória nem varredura para simular a semântica ausente.
+In order not to change the meaning of equality, the planner **does not use TAGs with separation** for predicate equality scalars/IN/IgnoreCase or for ordination of this field scalar. This includes the FT HASH with standard comma, even if CASESENSITIVE is activated. It can use a IDX without separator that covers the predicate, or refuse the method in creating the repository if there is no correct plan. The same rule applies to a TAG JSON with explicit separator. There is no post-filtration in memory or scanning to simulate absent semantics.
 
-Logo, `findByCityAndAgeBetweenOrderByAgeDesc` no exemplo usa IDX e mantém igualdade do campo completo, enquanto a consulta FT declarada por cidade usa explicitamente semântica de token. Consultas numéricas por FT continuam elegíveis, mesmo se outros campos do índice forem TAGs divididos. Métodos sobre propriedades aninhadas de um objeto dentro de um campo HASH são recusados; esses membros não são campos HASH independentes.
+Therefore, `findByCityAndAgeBetweenOrderByAgeDesc` in the example uses IDX and maintains equality of the whole field, while the declared FT query by city explicitly uses semantics of token. Numerical queries by FT remain eligible, even if other fields of the index are divided TAGs. Methods on nested properties of an object within a field HASH are refused. These members are not independent fields HASH.
 
-## Materialização, permissões e ciclo de vida
+## Materialization, permissions, and lifecycle
 
-IDX.QUERY/IDX.GET e FT.SEARCH devolvem todos os campos HASH por padrão. O template usa HashEntityCodec e executa AfterConvert da mesma forma que em findById. Listas, Maps, nomes Jackson e campos opcionais são reconstruídos pelo tipo declarado. A resposta é validada contra o prefixo do modelo. Essas APIs de entidade completa não preenchem entidades com campos omitidos por RETURN. O item 5.1 acrescenta [projeções nativas](projections.md) com DTOs/interfaces distintos e seleção explícita, sem callbacks de entidade.
+IDX.QUERY/IDX.GET and FT.SEARCH return all fields HASH by default. The template uses HashEntityCodec and executes AfterConvert in the same way as foundById. Lists, Maps, Jackson names and optional fields are reconstructed by the declared type. The answer is validated against the model prefix. These full entity APIs do not fill entities with fields omitted by RETURN. Item 5.1 adds [native projections](projections.md) with separate DTOs/interfaces and explicit selection, without entity callbacks.
 
-Não há HGETALL adicional por resultado. O teste de ACL usa um leitor com IDX/FT e acesso somente a chaves `visible*`, sem permissão de HGETALL: conteúdo e total refletem apenas as chaves legíveis. count/exists nativos não materializam entidades nem executam AfterConvert. A criação de índices continua exigindo as credenciais administrativas; a aplicação permanece sem DDL.
+There is no additional HGETALL per result. The ACL test uses a reader with IDX/FT and access only to keys `visible*`, without permission of HGETALL: content and total reflect only readable keys. native count/exists do not materialize entities or execute AfterConvert. Index creation continues to require administrative credentials. Application remains without DDL.
 
-Alterações HASH por save/HREPLACE atualizam IDX/FT e liberam os valores antigos ou removidos. Recusas UNIQUE preservam documento, TTL e donos dos índices. Chaves expiradas deixam de aparecer nos dois mecanismos. TTL, versão, auditoria e callbacks mantêm os contratos do CRUD 4.1; consultas não alteram esses dados.
+Changes HASH per save/HREPLACE update IDX/FT and release old or removed values. Objections UNIQUE preserve document, TTL and index owners. Expired keys no longer appear in both mechanisms. TTL, version, audit and callbacks maintain CRUD contracts 4.1. Queries do not change these data.
 
-Esta etapa não acrescenta novos comandos C++ ao patch HREPLACE: usa o suporte HASH de IDX/FT que o Datadam já possui. O requisito de servidor do CRUD HASH continua documentado em server-patches/README.md.
+This step does not add new C++ commands to the HREPLACE patch: it uses the HASH support of IDX/FT that Datadam already has. The server requirement of CRUD HASH continues to be documented in server-patches/README.md.
 
-## Exemplo HTTP equivalente ao Customer
+## HTTP example corresponding to Customer
 
-SchemaApplication também prepara HashCustomer idempotentemente. As rotas `/hash-customers`, `/hash-customers/derived`, `/hash-customers/search` e `/hash-customers/labels` cobrem IDX, derivação e FT; GET/POST/DELETE por ID completam o fluxo CRUD.
+SchemeApplication also prepares HashCustomer accordingly. The routes `/hash-customers`, `/hash-customers/derived`, `/hash-customers/search` and `/hash-customers/labels` cover IDX, derivation and FT; GET/POST/DELETE per ID complete the flow CRUD.
 
 ```powershell
 $id = [guid]::NewGuid().ToString()
@@ -103,8 +103,8 @@ Invoke-RestMethod 'http://127.0.0.1:8080/hash-customers/labels?label=Java'
 Invoke-RestMethod "http://127.0.0.1:8080/hash-customers/$id" -Method Delete
 ```
 
-## Validação
+## Validation
 
-HashIndexContractTest cobre geração/validação de DDL, separadores, aliases, diferenças de schema e materialização sem leituras extras. DerivedQueryValidationTest acrescenta nomes Jackson HASH, recusa de TAG dividido e recusa de propriedades aninhadas. HashQueriesIntegrationIT usa Datadam real no Docker para schema idempotente, faixa/ordem/paginação/totais, consultas declaradas/derivadas/programáticas, aliases, TAG/NUMERIC, valores ausentes/inválidos, atualização/remoção de campos, UNIQUE, TTL, ACL, callbacks e HTTP.
+HashIndexContractTest covers generation/validation of DDL, separators, aliases, schema differences and materialization without extra readings. DerivedQueryValidationTest adds Jackson names HASH, split TAG refusal and nesting properties refusal. HashQueriesIntegrationIT uses Real Datadam in the Docker for identical schema, track/order/page/totals, declared/derivative/programming queries, aliases, TAG/NUMERIC absent/invalid values, field update/remove, UNIQUE, TTL, ACL, callbacks and HTTP.
 
 Execute `./scripts/run-local.ps1 -Restart -IntegrationTests -Background`.
