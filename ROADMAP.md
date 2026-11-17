@@ -450,10 +450,12 @@ Steps 9 and 10 are further evolutions. The first stable version doesn't have to 
 
 **Decision on 2026-11-15:** `MULTI/EXEC` queues commands and returns a result for each operation. `WATCH` can prevent execution. Errors during `EXEC` leave other writes applied. A bound connection alone would change the synchronous results of `save` and reads, as well as when callbacks run. The Spring transaction manager was deferred. See the [transaction report](docs/spring-transactions.md) for the contract and test command.
 
-### 9.1. Demo example — orders and inventory — deferred
+### 9.1. Demo example — orders and inventory — complete
 
-- [ ] Create the Spring example with `PurchaseOrder` and `StockItem` when there is a contract dealing with partial success and unknown result.
-- [x] Document the scenario and the reason for the postponement. The native suite proves the partial effect and ambiguity in the loss of response.
+- [x] Create a Spring checkout example with `PurchaseOrder` and `StockItem` that reports complete, partial, and unknown outcomes.
+- [x] Demonstrate a partial checkout, a lost stock reply, and read-only reconciliation by order ID against Datadam in Docker.
+
+The demo uses two versioned repositories and an explicit checkout workflow. The Spring transaction manager remains deferred. See the [checkout walkthrough](docs/demo-examples.md#91-orders-and-inventory).
 
 ## 10. Reactive repositories — future work
 

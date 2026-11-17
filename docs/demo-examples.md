@@ -1,6 +1,6 @@
-# Runnable demo examples — stages 0 to 7
+# Runnable demo examples
 
-The 16 subtopics of roadmap have scripts that create data, perform real operations and verify results. `ExampleScenarios` contains business steps. Entities, repositories, callbacks and services are in `datadam-demo/src/main/java/com/anlohse/datadam/demo/examples`. The failure scenario uses existing security tests and the new `StockItem`.
+Stages 0 through 7 provide 16 scripts that create data, run operations, and verify results. `ExampleScenarios` contains the business steps. Entities, repositories, callbacks, and services are in `datadam-demo/src/main/java/com/anlohse/datadam/demo/examples`. The failure scenario uses the security tests and `StockItem`. Stage 9.1 adds an [order and inventory checkout](#91-orders-and-inventory).
 
 ## Setup and execution
 
@@ -159,3 +159,33 @@ Each command can add validation PING to the acquisition of the connection, accor
 Execution of **November 8, 2026**: 394 approved tests (187 units + 207 integration), including the 18 new demo tests, and plus 561 unit reruns in the matrix. The 16 examples passed through the runners. The additional workload used 100 documents per format. The API local answered UP, the registration/reading HTTP was conferred and the cleaning ended with zero keys in `demo:examples:*`. Evidence: [results of the examples](validation/2026-11-08-demo-examples.json).
 
 The short reproduction of the benchmark used 1.000 documents by format, 52 combinations, 3 warmups and 10 samples. The [results CSV](performance/2026-11-08-examples-results.csv) and [environment JSON](performance/2026-11-08-examples-environment.json) record this execution. They are used to check the reproduction and the executed commands, without supporting a statistical conclusion on latency or capacity.
+## 9.1. Orders and inventory
+
+Start the demo with `scripts/run-local.ps1 -Background`. Create a stock item and use its returned version for two orders. The second order deliberately reuses the old stock version.
+
+```powershell
+$base = 'http://localhost:8080/examples'
+$stock = Invoke-RestMethod "$base/stock" -Method Post -ContentType 'application/json' -Body (@{
+    sku = [guid]::NewGuid().ToString()
+    quantity = 10
+} | ConvertTo-Json)
+$first = [guid]::NewGuid()
+$second = [guid]::NewGuid()
+$body = @{ stockId = $stock.id; quantity = 3; expectedStockVersion = $stock.version } | ConvertTo-Json
+Invoke-RestMethod "$base/orders/$first" -Method Put -ContentType 'application/json' -Body $body
+Invoke-RestMethod "$base/orders/$second" -Method Put -ContentType 'application/json' -Body $body
+Invoke-RestMethod "$base/orders/$first"
+Invoke-RestMethod "$base/stock/$($stock.id)"
+```
+
+The first order returns `COMPLETED`. The second returns `PARTIAL` with `STALE_STOCK_VERSION`. Both orders are recorded, and the stock ends at quantity 7. Missing inventory and insufficient quantity also yield `PARTIAL`, with distinct rejection reasons.
+
+Use the known order ID to read the outcome if a checkout returns HTTP 503 with `UNKNOWN` or the HTTP reply is lost. Repeating the same request with that ID only observes the outcome once an order exists. Reusing the ID with different input returns HTTP 409. Keep that ID for reconciliation. A read may return HTTP 404 if order creation cannot yet be confirmed.
+
+The workflow creates the order, debits the stock with its expected version, and records the final outcome. Each write has its own acknowledgment. The debit and its order ID are written together in the stock document. If the debit reply is lost, a matching receipt lets a read report `COMPLETED`. Ordinary stock edits preserve the receipt, while a later checkout replaces it. If the stock was deleted or the receipt has been replaced before the outcome was recorded, the earlier order may remain `UNKNOWN`. A new order ID represents a new purchase attempt.
+
+The integration test starts a disposable server and drops the reply for the stock update after the server has applied it. It verifies the HTTP outcome, reconciliation, and the final stock quantity. With Docker running, execute from the repository root:
+
+```powershell
+mvn -B -ntp -pl datadam-demo -am '-Dit.test=CheckoutIntegrationIT' '-Dfailsafe.failIfNoSpecifiedTests=false' test-compile failsafe:integration-test failsafe:verify
+```

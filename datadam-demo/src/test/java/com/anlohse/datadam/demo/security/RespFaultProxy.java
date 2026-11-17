@@ -17,8 +17,16 @@ final class RespFaultProxy implements AutoCloseable {
     final AtomicBoolean armed = new AtomicBoolean(true);
     final CountDownLatch releaseReply = new CountDownLatch(1);
     final int upstreamPort; final String operation; final Fault fault;
+    private final String scriptKey;
     RespFaultProxy(int upstreamPort, String operation, Fault fault) throws IOException {
+        this(upstreamPort, operation, fault, null);
+    }
+    static RespFaultProxy forScriptKey(int upstreamPort, String key, Fault fault) throws IOException {
+        return new RespFaultProxy(upstreamPort, "EVAL", fault, key);
+    }
+    private RespFaultProxy(int upstreamPort, String operation, Fault fault, String scriptKey) throws IOException {
         this.upstreamPort = upstreamPort; this.operation = operation; this.fault = fault;
+        this.scriptKey = scriptKey;
         listener = new ServerSocket(0, 10, InetAddress.getByName("127.0.0.1"));
         workers.submit(() -> {
             while (!listener.isClosed()) {
@@ -33,7 +41,8 @@ final class RespFaultProxy implements AutoCloseable {
             sockets.add(upstream); client.setSoTimeout(5000); upstream.setSoTimeout(5000);
             while (true) {
                 byte[] request = frame(client.getInputStream());
-                boolean matches = operation.equals(command(request));
+                boolean matches = operation.equals(command(request))
+                    && (scriptKey == null || scriptKey.equals(argument(request, 3)));
                 if (matches) matchingRequests.incrementAndGet();
                 boolean inject = matches && armed.compareAndSet(true, false);
                 if (inject && fault == Fault.DROP_REQUEST) return;
@@ -48,9 +57,18 @@ final class RespFaultProxy implements AutoCloseable {
         catch (InterruptedException e) { Thread.currentThread().interrupt(); }
     }
     static String command(byte[] frame) throws IOException {
-        var input = new ByteArrayInputStream(frame); input.read(); line(input); input.read();
-        int length = Integer.parseInt(line(input));
-        return new String(input.readNBytes(length), StandardCharsets.US_ASCII);
+        return argument(frame, 0);
+    }
+    private static String argument(byte[] frame, int position) throws IOException {
+        var input = new ByteArrayInputStream(frame);
+        input.read();
+        if (Integer.parseInt(line(input)) <= position) return null;
+        for (int index = 0; index < position; index++) {
+            input.read();
+            input.skipNBytes(Integer.parseInt(line(input)) + 2);
+        }
+        input.read();
+        return new String(input.readNBytes(Integer.parseInt(line(input))), StandardCharsets.UTF_8);
     }
     static byte[] frame(InputStream input) throws IOException {
         var output = new ByteArrayOutputStream(); copy(input, output, 0); return output.toByteArray();
