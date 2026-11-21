@@ -282,6 +282,8 @@ mvn install
 
 If Maven fails with PKIX on this machine, the script already uses the Windows trusted certificate repository. For manual execution, configure `MAVEN_OPTS` with `-Djavax.net.ssl.trustStoreType=Windows-ROOT -Djavax.net.ssl.trustStore=NONE`, maintaining validation TLS.
 
+The optional reactive API provides native JSON operations and bounded IDX/FT queries through `ReactiveDatadamOperations`. See [reactive native operations](docs/reactive-transport.md) for dependencies, connection configuration, demand, and cancellation.
+
 Scope of 0.1:
 
 - Repository mapping in JSON and HASH, additional operations JSON and native projections IDX/FT, according to the specific pages of each resource.

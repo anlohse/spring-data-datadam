@@ -6,9 +6,9 @@ This roadmap tracks the library's development from its current feature set to a 
 
 **Next action:** finish **Maven Central publication for 8.2** after verifying the com.anlohse namespace and production signing key, reviewing a release candidate from a clean checkout, and obtaining explicit authorization. CI, candidate preparation, and example 8.2.1 are implemented and have been validated locally. The Central upload is still pending.
 
-**Next development milestone:** **10 — Reactive repositories**. Milestone 9 concluded the transaction investigation and deferred the Spring transaction manager and the transaction example in the demo.
+**Next development item:** **10 — Reactive repositories and entity lifecycle**. Native reactive operations are available. The transaction investigation and checkout example in milestones 9 and 9.1 are complete.
 
-**Demo examples:** all 16 examples from **0.1 through 7.3.1** are complete, with dedicated models, CLI and HTTP walkthroughs, and Docker validation. See the [runnable examples](docs/demo-examples.md) and [recorded run results](docs/validation/2026-11-08-demo-examples.json). **8.1.1 — Standalone consumer** and **8.2.1 — Release candidate smoke test** are also complete. The Spring example for milestone 9 was deferred, and the example for milestone 10 is pending.
+**Demo examples:** all 16 examples from **0.1 through 7.3.1** are complete, with dedicated models, CLI and HTTP walkthroughs, and Docker validation. See the [runnable examples](docs/demo-examples.md) and [recorded run results](docs/validation/2026-11-08-demo-examples.json). **8.1.1 — Standalone consumer**, **8.2.1 — Release candidate smoke test**, and **9.1 — Orders and inventory** are also complete. The example for milestone 10 is pending.
 
 ## How we work
 
@@ -457,15 +457,19 @@ Steps 9 and 10 are further evolutions. The first stable version doesn't have to 
 
 The demo uses two versioned repositories and an explicit checkout workflow. The Spring transaction manager remains deferred. See the [checkout walkthrough](docs/demo-examples.md#91-orders-and-inventory).
 
-## 10. Reactive repositories — future work
+## 10. Reactive repositories — in progress
 
-- [ ] Select and validate a truly non-blocking transport that preserves the response formats used by Datadam.
-- [ ] Implement reactive operations for JSON, IDX and FT, with cancellation and demand control.
+- [x] Select and validate a non-blocking transport that preserves the response formats used by Datadam.
+- [x] Implement reactive operations for JSON, IDX and FT, with cancellation and demand control.
 - [ ] Create reactive repositories and set your support to TTL, version, audit and projections.
 - [ ] Test competition, closure of connections and absence of blocking of event processing threads.
 - [ ] Add application/reactive examples and document compatibility with API imperative.
 
-**Done when:** the API reagent has non-blocking transport and tested behavior. Encapsular called Jedis blockers in Mono/Flux will not be considered completion of this step.
+**Done when:** the reactive API provides non-blocking I/O and the tests cover demand, cancellation, concurrency, and connection lifecycle.
+
+**Transport decision on 2026-11-16:** use Lettuce with RESP2 for the reactive implementation. The integration tests cover JSON, IDX, and FT reply shapes, command errors, demand before dispatch, and a lost write reply with replay disabled. See [Reactive transport validation](docs/reactive-transport.md) for the evidence and the constraints on the upcoming API.
+
+**Native operations delivered on 2026-11-20:** `ReactiveDatadamOperations` provides cold JSON reads, writes and deletes, bounded IDX pages and counts, and FT pages with parameters, sorting and native projections. The caller supplies and owns the asynchronous Lettuce connection. Each requested page has an explicit limit. Cancellation tests verify both zero dispatch before demand and response draining after a write. Validation passed 189 unit tests and 14 targeted integration tests against Datadam 0.2.0 in Docker. Continue with reactive repositories and entity lifecycle support.
 
 ### 10.1. Demo example — reactive telemetry reads
 
