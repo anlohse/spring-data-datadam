@@ -35,6 +35,8 @@ The consumption support focuses on the types below. The visibility `public` of a
 |---|---|
 | `annotation.*` | Document/storage reporting metadata, index/fields, queries IDX/FT, TTL, ID and projection mapping. |
 | `repository.DatadamRepository` | Interface to be extended by domain; CRUD Spring Data more native queries and projections in the documented subset. |
+| `ReactiveDatadamTemplate`, `repository.ReactiveDatadamRepository`, `config.EnableReactiveDatadamRepositories` | Reactive entity mapping, Spring Data CRUD, bounded IDX/FT queries, and projections. The application supplies the connection and opts into reactive auditing. |
+| `reactive.ReactiveDatadamOperations` | Low-level native operations over a caller-owned Lettuce RESP2 connection, including scalar and array command dispatch. |
 | `DatadamTemplate`, `EntityModel` | Programmatic APIs for entities, queries, and projections. The model associates the type with its key prefix, storage format, and declarations. |
 | `CompoundQuery`, `SearchQuery`, `ProjectionSpec`, `JsonPath` | Typed input objects. Linked parameters are not user-free concatenation. |
 | `DatadamJsonOperations`, `JsonReadResult`, `JsonPopResult` | Reading and partial mutation, null/absence results and arrays according to specific guides. |
@@ -53,7 +55,8 @@ Exceptions Spring DAO distinguish duplicate (`DuplicateKeyException`), obsolete 
 
 ## Guarantees and limitations
 
-- APIs are blocking, with a pool connection per command. There is no reactive support, cluster, database other than 0 or Spring transaction manager in this version. Dependency `spring-tx` offers the hierarchy of exceptions, without providing a Datadam transaction manager. [Step 9 Decision and native guarantees](spring-transactions.md).
+- The imperative API borrows a Jedis connection for each command. The optional reactive API uses Lettuce with a caller-owned asynchronous connection, Reactor publishers, and separate repository registration. Its supported lifecycle and query methods are described in the [reactive guide](reactive-transport.md).
+- Both APIs use database 0. Cluster operations and a Spring transaction manager remain outside the current scope. The `spring-tx` dependency supplies the exception hierarchy. [Transaction decision and native guarantees](spring-transactions.md).
 - JSON is standard; HASH requires HREPLACE. Projections JSON require RETURNJSON. The validated server is the revision fixed in `config/test-images.properties`, not common Redis or any Datadam revision.
 - UNIQUE, filters, order and pagination use native resources. There is no promise of equivalence with all Spring Data operators or full text search of RediSearch. TAG/NUMERIC and documented refusals define the scope.
 - `@Version` does CAS per entity. Updates/deletions refused per version do not replace the document. Direct commands and changes outside the library may circumvent this contract.

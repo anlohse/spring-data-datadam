@@ -189,3 +189,30 @@ The integration test starts a disposable server and drops the reply for the stoc
 ```powershell
 mvn -B -ntp -pl datadam-demo -am '-Dit.test=CheckoutIntegrationIT' '-Dfailsafe.failIfNoSpecifiedTests=false' test-compile failsafe:integration-test failsafe:verify
 ```
+
+## 10.1. Reactive telemetry
+
+`TelemetryReading` records device measurements with a generated ID, version, audit fields, and a default TTL of ten minutes. Its UNIQUE index covers device and sequence. A second TAG/NUMERIC index supports native searches.
+
+Run `scripts/run-local.ps1 -Background` to build the demo and prepare indexes with the schema user. In another terminal, start the separate WebFlux application on port 8081:
+
+```powershell
+java '-Dloader.main=com.anlohse.datadam.demo.reactive.ReactiveTelemetryApplication' -cp datadam-demo/target/datadam-demo-0.1.0-SNAPSHOT.jar org.springframework.boot.loader.launch.PropertiesLauncher --server.port=8081
+```
+
+The connection uses DATADAM_HOST/PORT/USERNAME/PASSWORD, with the same local defaults as the main demo. Index preparation stays in the administrative process.
+
+```powershell
+$device = [guid]::NewGuid().ToString()
+$body = @{ device = $device; sequence = 1; value = 21.5 } | ConvertTo-Json -Compress
+Invoke-RestMethod 'http://127.0.0.1:8081/reactive/telemetry' -Method Post -ContentType 'application/x-ndjson' -Body $body
+Invoke-RestMethod "http://127.0.0.1:8081/reactive/telemetry?device=$device&size=1"
+```
+
+POST accepts JSON objects separated by newlines and returns saved objects as NDJSON. GET by device returns an ordered, bounded NDJSON page. GET `/reactive/telemetry/{id}` returns one entity or HTTP 404. The maximum HTTP page size is 100. The response includes the ID, version, audit dates, and the demo actor `telemetry-demo`.
+
+The subscriber controls how many save results it requests. The repository writes one entity at a time, and cancellation stops subsequent input. A failure during an HTTP stream may happen after earlier records were acknowledged and after HTTP headers were sent. Keep acknowledged IDs and reconcile uncertain records. The integration test drives limited demand directly at the repository and cancels the HTTP read stream.
+
+An updated reading must carry its current version. Another save using an older version fails. A second new reading with the same device and sequence violates UNIQUE. The integration suite also drops a write reply and confirms that a mutable input keeps its unacknowledged ID and version.
+
+Run `ReactiveRepositoriesIT` using the [reactive validation command](reactive-transport.md#run-the-validation). The tests create their own Datadam instance, prepare their own indexes, exercise the WebFlux router, and close the application connection.

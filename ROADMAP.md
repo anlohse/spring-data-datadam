@@ -2,13 +2,13 @@
 
 This roadmap tracks the library's development from its current feature set to a release ready for adoption in other projects. Each milestone delivers usable functionality that later milestones can build on.
 
-**Current status:** CRUD, native IDX/FT queries and projections for JSON and HASH, TTL, IDs, auditing, callbacks, optimistic locking, and JSON operations for increments, arrays, and merges. The library provides query and connection-pool diagnostics and explicit index migration. The compatibility matrix covers Java 17/21/25 with Boot 3.5.16 and Data Commons 3.5.13. Images are identified by revision and digest, and benchmark results are published. Milestone 8.1 split the core, auto-configuration, and starter modules, added sources, Javadoc, and metadata, and validated a standalone consumer. All 403 Java tests passed: 188 unit tests (140 in core and 48 in auto-configuration) and 215 integration tests against Datadam in Docker. The matrix also reruns all 188 unit tests on each isolated JVM, for 564 additional runs. In milestone 5.1, the server with HREPLACE/RETURNJSON passed 186 native tests as well as the C++ integration and persistence suites. Milestones after 5.1 through 7.3 left the C++ code unchanged.
+**Current status:** CRUD, native IDX/FT queries and projections for JSON and HASH, TTL, IDs, auditing, callbacks, optimistic locking, and JSON operations for increments, arrays, and merges. The library provides query and connection-pool diagnostics and explicit index migration. The compatibility matrix covers Java 17/21/25 with Boot 3.5.16 and Data Commons 3.5.13. Images are identified by revision and digest, and benchmark results are published. Milestone 8.1 split the core, auto-configuration, and starter modules, added sources, Javadoc, and metadata, and validated a standalone consumer. The latest local CI passed 432 Java tests: 189 unit tests (141 in core and 48 in auto-configuration) and 243 integration tests against Datadam in Docker. The matrix also reruns all 189 unit tests on each isolated JVM, for 567 additional runs. In milestone 5.1, the server with HREPLACE/RETURNJSON passed 186 native tests as well as the C++ integration and persistence suites. Milestones after 5.1 through 7.3 left the C++ code unchanged.
 
 **Next action:** finish **Maven Central publication for 8.2** after verifying the com.anlohse namespace and production signing key, reviewing a release candidate from a clean checkout, and obtaining explicit authorization. CI, candidate preparation, and example 8.2.1 are implemented and have been validated locally. The Central upload is still pending.
 
-**Next development item:** **10 — Reactive repositories and entity lifecycle**. Native reactive operations are available. The transaction investigation and checkout example in milestones 9 and 9.1 are complete.
+**Development status:** **10 — Reactive repositories** and its telemetry example are complete. The remaining release action is Maven Central publication under item 8.2. The transaction manager decision is recorded in milestone 9.
 
-**Demo examples:** all 16 examples from **0.1 through 7.3.1** are complete, with dedicated models, CLI and HTTP walkthroughs, and Docker validation. See the [runnable examples](docs/demo-examples.md) and [recorded run results](docs/validation/2026-11-08-demo-examples.json). **8.1.1 — Standalone consumer**, **8.2.1 — Release candidate smoke test**, and **9.1 — Orders and inventory** are also complete. The example for milestone 10 is pending.
+**Demo examples:** all 16 examples from **0.1 through 7.3.1** are complete, with dedicated models, CLI and HTTP walkthroughs, and Docker validation. See the [runnable examples](docs/demo-examples.md) and [recorded run results](docs/validation/2026-11-08-demo-examples.json). **8.1.1 — Standalone consumer**, **8.2.1 — Release candidate smoke test**, **9.1 — Orders and inventory**, and **10.1 — Reactive telemetry** are complete.
 
 ## How we work
 
@@ -457,26 +457,30 @@ Steps 9 and 10 are further evolutions. The first stable version doesn't have to 
 
 The demo uses two versioned repositories and an explicit checkout workflow. The Spring transaction manager remains deferred. See the [checkout walkthrough](docs/demo-examples.md#91-orders-and-inventory).
 
-## 10. Reactive repositories — in progress
+## 10. Reactive repositories — complete
 
 - [x] Select and validate a non-blocking transport that preserves the response formats used by Datadam.
 - [x] Implement reactive operations for JSON, IDX and FT, with cancellation and demand control.
-- [ ] Create reactive repositories and set your support to TTL, version, audit and projections.
-- [ ] Test competition, closure of connections and absence of blocking of event processing threads.
-- [ ] Add application/reactive examples and document compatibility with API imperative.
+- [x] Create reactive repositories and document support for TTL, version, audit and projections.
+- [x] Test concurrent operations, connection shutdown and absence of blocking in event-loop threads.
+- [x] Add a reactive application and document compatibility with the imperative API.
 
 **Done when:** the reactive API provides non-blocking I/O and the tests cover demand, cancellation, concurrency, and connection lifecycle.
 
 **Transport decision on 2026-11-16:** use Lettuce with RESP2 for the reactive implementation. The integration tests cover JSON, IDX, and FT reply shapes, command errors, demand before dispatch, and a lost write reply with replay disabled. See [Reactive transport validation](docs/reactive-transport.md) for the evidence and the constraints on the upcoming API.
 
-**Native operations delivered on 2026-11-20:** `ReactiveDatadamOperations` provides cold JSON reads, writes and deletes, bounded IDX pages and counts, and FT pages with parameters, sorting and native projections. The caller supplies and owns the asynchronous Lettuce connection. Each requested page has an explicit limit. Cancellation tests verify both zero dispatch before demand and response draining after a write. Validation passed 189 unit tests and 14 targeted integration tests against Datadam 0.2.0 in Docker. Continue with reactive repositories and entity lifecycle support.
+**Native operations delivered on 2026-11-20:** `ReactiveDatadamOperations` provides cold JSON reads, writes and deletes, bounded IDX pages and counts, and FT pages with parameters, sorting and native projections. The caller supplies and owns the asynchronous Lettuce connection. Each requested page has an explicit limit. Cancellation tests verify both zero dispatch before demand and response draining after a write. Validation passed 189 unit tests and 14 targeted integration tests against Datadam 0.2.0 in Docker.
 
-### 10.1. Demo example — reactive telemetry reads
+**Repository delivery on 2026-11-22:** ReactiveCrudRepository integration, separate Spring registration, JSON/HASH mapping, generated IDs, versioned saves and deletes, TTL, ReactiveAuditorAware context auditing, and typed native projections. Local save preparation is shared with the imperative template. Native queries use bounded pages and interface default methods. The reactive lifecycle exposes auditing and ID generators. See [the supported API](docs/reactive-transport.md#reactive-repositories-and-entity-lifecycle).
+
+**Validation:** local CI passed 432 tests (189 unit and 243 integration), the Java 17/21/25 matrix added 567 unit executions, and artifact and independent-consumer checks passed. The reactive suite covers limited demand, cancellation, concurrent versions, ambiguous acknowledgments, expiration, restricted projection credentials, WebFlux streaming, and shutdown. An isolated BlockHound process checks concurrent reactive CRUD with positive blocking controls. The packaged telemetry JAR also passed startup, schema preparation, HTTP writes and reads, auditing, and version checks.
+
+### 10.1. Demo example — reactive telemetry reads — complete
 
 **Dependence:** non-blocking transport and reactive repositories delivered in milestone 10.
 
-- [ ] Create `TelemetryReading` and a reactive stream of persistence/query with demand control, according to API that is delivered.
-- [ ] Add router and validation of cancellation, errors and limited demand, verifying the absence of blocking in the threads of the flow. Keep this example pending until there is the necessary transport.
+- [x] Create `TelemetryReading` and reactive persistence/query streams with demand control.
+- [x] Add a WebFlux router and validate cancellation, errors, limited demand and non-blocking operations. Provide a runnable packaged application and an HTTP walkthrough.
 
 ## Out of scope for now
 
@@ -502,5 +506,6 @@ The demo uses two versioned repositories and an explicit checkout workflow. The 
 | 7.1 — Library diagnosis | Completed | configurable pool, optional health/metrics and sanitized telemetry; 358 approved Java tests (187 units and 171 integration) |
 | 7.2 — Failure tests and safety | Completed | Uncertain result failures, restart/pool, TLS with identity and matrix ACL; 373 approved Java tests (187 units and 186 integration) |
 | 7.3 — Compatibility and Performance Matrix | Completed | Java 17/21/25, image by revision/ID, workload and published artifacts; 376 Maven tests and 561 additional unit executions in the matrix |
+| 10 — Reactive repositories and telemetry | Completed | JSON/HASH, TTL, version, auditing, projections, demand and cancellation, BlockHound, WebFlux and packaged startup. Local CI passed 432 tests and 567 additional matrix executions. |
 
 At the end of each delivery, we will add here the result, the tests performed and any decisions that alter the next steps.

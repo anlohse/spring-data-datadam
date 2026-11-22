@@ -142,6 +142,32 @@ public final class ReactiveDatadamOperations {
         }).onErrorMap(RedisException.class, ReactiveDatadamOperations::translate);
     }
 
+    /** Low-level scalar dispatch for native scripts and entity lifecycle commands. */
+    public Mono<Object> executeScalar(String command, List<?> arguments) {
+        return execute(required(command), ScalarOutput::new, arguments);
+    }
+
+    /** Low-level nested array dispatch, including SCAN and HASH field reads. */
+    public Mono<List<Object>> executeArray(String command, List<?> arguments) {
+        return execute(required(command), ArrayOutput::new, arguments);
+    }
+
+    private static final class ScalarOutput extends CommandOutput<String, String, Object> {
+        private ScalarOutput() {
+            super(StringCodec.UTF8, null);
+        }
+
+        @Override
+        public void set(long number) {
+            output = number;
+        }
+
+        @Override
+        public void set(ByteBuffer bytes) {
+            output = bytes == null ? null : StringCodec.UTF8.decodeValue(bytes);
+        }
+    }
+
     private static DataAccessException translate(RedisException failure) {
         if (!(failure instanceof RedisCommandExecutionException)) {
             return new DataAccessResourceFailureException("Datadam reactive command failed; reconcile uncertain writes", failure);

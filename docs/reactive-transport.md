@@ -1,6 +1,6 @@
 # Reactive native operations
 
-Milestone 10 uses **Lettuce 6.6.0.RELEASE with RESP2**, managed by Spring Boot 3.5.16. `ReactiveDatadamOperations` exposes native JSON reads, writes, and deletes, IDX queries and counts, and FT searches. Query results contain keys and native field text. Entity mapping and reactive repositories are the next roadmap item. [Lettuce reactive API](https://redis.github.io/lettuce/user-guide/reactive-api/) and [custom command dispatch](https://github.com/redis/lettuce/wiki/Custom-commands%2C-outputs-and-command-mechanics).
+Milestone 10 uses **Lettuce 6.6.0.RELEASE with RESP2**, managed by Spring Boot 3.5.16. `ReactiveDatadamOperations` exposes native JSON, IDX, and FT commands. `ReactiveDatadamTemplate` and `ReactiveDatadamRepository` add entity mapping, versioned writes, TTL, auditing, and projections. [Lettuce reactive API](https://redis.github.io/lettuce/user-guide/reactive-api/) and [custom command dispatch](https://github.com/redis/lettuce/wiki/Custom-commands%2C-outputs-and-command-mechanics).
 
 ## Dependencies and connection ownership
 
@@ -69,16 +69,44 @@ Publishers are cold. Creating or subscribing to a publisher without requesting i
 
 After dispatch, cancellation stops delivery to the subscriber. The server may already have applied a mutation. Lettuce drains its response so the next command on that connection receives the correct reply. The test delays a write reply, cancels, and then reads the applied value through the same socket. After a dropped reply, the write runs once and the disconnected connection rejects later commands. Reconcile the outcome before retrying.
 
-Demand is controlled per page. The selected page is buffered as a complete RESP response, and the page limit bounds rows rather than document bytes or the server's scanning cost. Applications fetch another page explicitly. Concurrent changes can affect offset pagination between requests. Reactive repositories, TLS and ACL integration, concurrent connection lifecycle testing, and the reactive demo remain in milestone 10.
+Demand is controlled per page. The selected page is buffered as a complete RESP response, and the page limit bounds rows rather than document bytes or the server's scanning cost. Applications fetch another page explicitly. Concurrent changes can affect offset pagination between requests.
 
 Server UNIQUE errors map to `DuplicateKeyException`, ACL errors to `PermissionDeniedDataAccessException`, and other command refusals to `InvalidDataAccessResourceUsageException`. Lettuce resource errors map to `DataAccessResourceFailureException`. The operations add no retry operator.
+
+## Reactive repositories and entity lifecycle
+
+Declare a repository interface extending `ReactiveDatadamRepository<Entity, ID>`. Register it with `@EnableReactiveDatadamRepositories(basePackageClasses = YourRepository.class)` and supply a `ReactiveDatadamTemplate` bean. Its constructor takes the native operations and an ObjectMapper. Connection establishment happens asynchronously before the demo initializes Spring. A plain Spring application can supply an established connection through its own lifecycle.
+
+The repository extends Spring Data Commons `ReactiveCrudRepository`. Its native query methods return `Mono<Page<T>>` and require a bounded Pageable. Interface default methods can compose `CompoundQuery`, `SearchQuery`, and `ProjectionSpec`. The [telemetry repository](../datadam-demo/src/main/java/com/anlohse/datadam/demo/reactive/TelemetryRepository.java) demonstrates this arrangement. Query derivation by method name and `@IdxQuery`/`@FtQuery` declarations are supported by the imperative repository factory. The reactive factory rejects additional abstract query methods at startup.
+
+| Feature | Reactive behavior |
+|---|---|
+| Storage | JSON and HASH use the same entity models and serialization rules as imperative repositories. |
+| Generated IDs | The default UUID generator and explicitly supplied generators are supported. Mutable IDs are populated after acknowledgment. Custom generators must execute without blocking. |
+| Version | The existing Lua scripts enforce create-only writes, compare-and-set updates, and conditional deletes. A stale version emits `OptimisticLockingFailureException`. Mutable versions advance only after acknowledgment. |
+| TTL | Default and per-entity TTL values share the imperative conversion and validation rules. Content, version, and TTL use the same scripts. `persist(id)` removes expiration. |
+| Auditing | Supply `ReactiveAuditorAware<?>` and a Clock to enable audit dates and actors. The actor is resolved for each save in the subscriber's Reactor context. An empty actor still allows dates. |
+| Projections | Records and closed interfaces share ProjectionPlan with imperative repositories. Selected fields are returned natively, including type-preserving JSON and HASH decoding. |
+| Callbacks | Each template has its own lifecycle configuration. Imperative callbacks and `@EnableDatadamAuditing` are configured on the imperative template. The reactive template currently exposes auditing and ID generators as its lifecycle extension points. |
+| Bulk writes | `saveAll` requests and writes entities sequentially according to downstream demand. Cancellation stops the remaining input. A dispatched write can still complete. |
+| Global enumeration | `findAll`, global `count`, and global deletion enumerate the entity prefix with SCAN. SCAN uses batches of approximately 256 keys and deduplicates keys in memory. Concurrent enumeration has no global snapshot. Prefer indexed pages for large datasets. |
+
+Save preparation and acknowledgment processing live in a transport-free helper shared by the two templates. The reactive path uses native asynchronous command dispatch throughout. A batch can partially succeed, and a lost write acknowledgment requires reconciliation through a known ID or business key.
+
+The demo's [WebFlux application](../datadam-demo/src/main/java/com/anlohse/datadam/demo/reactive/ReactiveTelemetryApplication.java) uses Netty, a separately configured connection, and asynchronous connection shutdown. The profile `reactive-telemetry` activates its router. Follow the [telemetry walkthrough](demo-examples.md#101-reactive-telemetry).
+
+## Runtime checks
+
+`ReactiveRepositoriesIT` checks generated IDs, versions, concurrent updates, TTL and expiration, context auditing, JSON/HASH mapping, projections with restricted ACLs, demand-limited batches, ambiguous write results, and HTTP streaming and shutdown.
+
+A separate JVM installs BlockHound for Reactor workers and Lettuce event-loop threads. Positive controls exercise Thread.sleep and the imperative DatadamCommands transport, and the probe then runs concurrent reactive saves, reads, and deletes. Thread.sleep is explicitly marked because the JDK 25 implementation differs from the detector's default instrumentation. This check covers the exercised operations and the supplied configuration. Applications must also keep their auditors, generators, and other extensions non-blocking. [BlockHound](https://github.com/reactor/BlockHound).
 
 ## Run the validation
 
 With Docker running, execute from the repository root:
 
 ```powershell
-mvn -B -ntp -pl datadam-demo -am '-Dit.test=ReactiveTransportIT,ReactiveOperationsIT' '-Dfailsafe.failIfNoSpecifiedTests=false' test failsafe:integration-test failsafe:verify
+mvn -B -ntp -pl datadam-demo -am '-Dit.test=ReactiveTransportIT,ReactiveOperationsIT,ReactiveRepositoriesIT' '-Dfailsafe.failIfNoSpecifiedTests=false' test failsafe:integration-test failsafe:verify
 ```
 
 The suite starts and removes a disposable server and its storage. Results are in `datadam-demo/target/failsafe-reports`.
