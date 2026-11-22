@@ -26,6 +26,7 @@ import com.anlohse.datadam.demo.examples.migration.MigrationProduct;
 public final class ExampleSchemas {
     private ExampleSchemas(){}
     public static List<Class<?>> entities(){return List.of(Product.class, TemporaryReservation.class, SupportTicket.class, ExternalTicket.class, Article.class,
-        StockItem.class, UserPreferences.class, ShoppingCart.class, DeviceState.class, Book.class, ImportJob.class,MigrationProduct.class);}
+        StockItem.class, UserPreferences.class, ShoppingCart.class, DeviceState.class, Book.class, ImportJob.class,MigrationProduct.class,
+        com.anlohse.datadam.demo.reactive.TelemetryReading.class);}
     public static void prepare(DatadamIndexOperations indexes){entities().forEach(type->indexes.ensureIndexes(type,Duration.ofSeconds(30)));}
 }
